@@ -1,16 +1,33 @@
-## Hi there 👋
+# 491WD2 Family Hub
 
-<!--
-**491WD2/491wd2** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Household command center (`AdminUX`), chore kiosk PWA, UI Builder, and Help Center.
 
-Here are some ideas to get you started:
+**Stack:** React · Vite · TypeScript · Tailwind CSS · Jest · Supabase client · Netlify · PWA
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+## Scripts
+
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Dev server at http://localhost:5173 |
+| `npm run build` | Production build |
+| `npm run start` | Preview production build on :4173 |
+| `npm run test` | Jest unit tests |
+| `npm run lint` | Oxlint |
+| `npm run handoff` | Package a client zip into `handoff/` |
+
+## Routes
+
+- `/` — AdminUX command center
+- `/chores` — touch-first chore kiosk (PWA start URL)
+- `/builder` — UI Builder block toggles
+- `/help` — Help Center
+
+## Environment
+
+Copy `.env.example` to `.env.local` and set Supabase keys when ready. Without them the app runs on local seed data.
+
+Do not commit `.env`, `.env.local`, or `.env.production`.
+
+## Deploy
+
+Netlify uses `netlify.toml` (`npm run build` → `dist`, SPA redirect).

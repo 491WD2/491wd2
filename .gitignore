@@ -3,6 +3,8 @@ node_modules/
 
 # build
 dist/
+dist-ssr/
+handoff/*.zip
 
 # env files
 .env
@@ -11,6 +13,8 @@ dist/
 
 # caches
 .vite/
+*.local
+coverage/
 
 # logs
 *.log
@@ -18,5 +22,11 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
-# OS files
+# editor / OS
 .DS_Store
+.cursor/
+*.swp
+*.swo
+
+# typescript
+*.tsbuildinfo
