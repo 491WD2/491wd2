@@ -7,15 +7,20 @@ import {
   Trash2, AlertCircle, Menu, ChevronDown,
   Users, Wind, Droplets, Star, Tag,
   Edit2, Archive, ShieldAlert,
-  PawPrint, CalendarCheck, Bookmark, Key, FileText
+  PawPrint, CalendarCheck, Bookmark, Key, FileText,
+  Monitor, Tablet,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type PreviewMode = 'desktop' | 'app';
 
 type View =
   | 'home' | 'messages' | 'calendar' | 'shopping' | 'pantry'
   | 'cleaning' | 'emergency' | 'pets' | 'subscriptions'
   | 'planner' | 'family' | 'notifications' | 'docs' | 'settings';
+
+const PREVIEW_STORAGE_KEY = '491wd-preview-mode';
 
 interface NavItem {
   id: View;
@@ -244,7 +249,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
 
   return (
     <aside
-      className="flex flex-col h-screen bg-white border-r border-black/[0.06] flex-shrink-0 transition-all duration-300 overflow-hidden"
+      className="flex h-full flex-col flex-shrink-0 overflow-hidden border-r border-black/[0.06] bg-white transition-all duration-300"
       style={{ width: collapsed ? '64px' : '240px' }}
     >
       {/* Brand */}
@@ -1734,12 +1739,61 @@ function SettingsView() {
   );
 }
 
+// ── Preview chrome (Desktop vs App / tablet frame) ────────────────────────────
+
+function PreviewModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: PreviewMode;
+  onChange: (mode: PreviewMode) => void;
+}) {
+  return (
+    <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-white/10 bg-stone-900/90 p-1 shadow-2xl backdrop-blur-md">
+      <button
+        type="button"
+        onClick={() => onChange('desktop')}
+        className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+          mode === 'desktop'
+            ? 'bg-white text-stone-900 shadow-sm'
+            : 'text-stone-300 hover:bg-white/10 hover:text-white'
+        }`}
+        aria-pressed={mode === 'desktop'}
+      >
+        <Monitor size={16} />
+        Desktop view
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('app')}
+        className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+          mode === 'app'
+            ? 'bg-white text-stone-900 shadow-sm'
+            : 'text-stone-300 hover:bg-white/10 hover:text-white'
+        }`}
+        aria-pressed={mode === 'app'}
+      >
+        <Tablet size={16} />
+        App view
+      </button>
+    </div>
+  );
+}
+
 // ── App Root ──────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [view, setView] = useState<View>('home');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [quickAddMode, setQuickAddMode] = useState<'shopping' | 'pantry' | null>(null);
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
+    try {
+      const saved = localStorage.getItem(PREVIEW_STORAGE_KEY);
+      return saved === 'app' || saved === 'desktop' ? saved : 'desktop';
+    } catch {
+      return 'desktop';
+    }
+  });
 
   const [shoppingItems, setShoppingItems] = useState(INITIAL_SHOPPING);
   const [pantryItems, setPantryItems] = useState(INITIAL_PANTRY);
@@ -1773,13 +1827,27 @@ export default function App() {
   const toggleChore = (id: string) =>
     setChores(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
 
-  // Auto-collapse sidebar on small screens
   useEffect(() => {
-    const check = () => setSidebarCollapsed(window.innerWidth < 1024);
+    try {
+      localStorage.setItem(PREVIEW_STORAGE_KEY, previewMode);
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [previewMode]);
+
+  // Auto-collapse sidebar on small screens (desktop preview only)
+  useEffect(() => {
+    const check = () => {
+      if (previewMode === 'app') {
+        setSidebarCollapsed(false);
+        return;
+      }
+      setSidebarCollapsed(window.innerWidth < 1024);
+    };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
-  }, []);
+  }, [previewMode]);
 
   const renderView = () => {
     switch (view) {
@@ -1800,15 +1868,15 @@ export default function App() {
     }
   };
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-[#F8F6F2]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+  const shell = (
+    <div className="flex h-full min-h-0 overflow-hidden bg-[#F8F6F2]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <Sidebar
         current={view}
         onChange={setView}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(p => !p)}
       />
-      <main className="flex-1 overflow-y-auto min-w-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
+      <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
         {renderView()}
       </main>
 
@@ -1821,6 +1889,39 @@ export default function App() {
             else addPantryItem(name, qty);
           }}
         />
+      )}
+    </div>
+  );
+
+  return (
+    <div className="relative h-screen w-screen overflow-hidden bg-stone-950">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
+        <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
+      </div>
+
+      {previewMode === 'desktop' ? (
+        <div className="h-full w-full pt-14">{shell}</div>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#292524_0%,#0c0a09_55%)] px-4 pb-6 pt-16">
+          <div className="flex w-full max-w-[1180px] flex-col items-center gap-3">
+            <div className="text-center text-xs font-medium tracking-wide text-stone-400">
+              App view · landscape tablet frame (wall display)
+            </div>
+            <div
+              className="w-full overflow-hidden rounded-[28px] border border-stone-700 bg-stone-900 shadow-[0_40px_80px_rgba(0,0,0,0.45)]"
+              style={{ aspectRatio: '16 / 10', maxHeight: 'min(820px, calc(100vh - 7.5rem))' }}
+            >
+              <div className="flex h-full flex-col p-3">
+                <div className="mb-2 flex items-center justify-center">
+                  <div className="h-1.5 w-24 rounded-full bg-stone-700" />
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#F8F6F2]">
+                  {shell}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
