@@ -1,0 +1,130 @@
+/**
+ * BankDash-inspired design tokens — Family Hub tablet / SaaS dashboard.
+ * Reference: BankDash UI Kit (Figma Community).
+ */
+
+:root {
+  /* Liquid glass system */
+  --lg-bg-0: #02040d;
+  --lg-bg-1: #07111f;
+  --lg-bg-2: #102333;
+  --lg-glass: rgba(220, 240, 255, 0.095);
+  --lg-glass-strong: rgba(232, 244, 255, 0.145);
+  --lg-glass-muted: rgba(255, 255, 255, 0.055);
+  --lg-border: rgba(218, 236, 255, 0.18);
+  --lg-border-strong: rgba(218, 236, 255, 0.3);
+  --lg-text: #f8fbff;
+  --lg-text-soft: rgba(225, 236, 250, 0.82);
+  --lg-text-muted: rgba(177, 193, 218, 0.68);
+  --lg-cyan: #7df9ff;
+  --lg-blue: #58d8ff;
+  --lg-mint: #24f2c0;
+  --lg-violet: #a88cff;
+  --lg-pink: #ff7adf;
+  --lg-amber: #ffd166;
+  --lg-radius-xl: 28px;
+  --lg-radius-lg: 22px;
+  --lg-radius-md: 16px;
+  --lg-shadow: 0 24px 70px rgba(0, 0, 0, 0.42), 0 0 34px rgba(125, 249, 255, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  --lg-shadow-soft: 0 16px 44px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  --lg-surface:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.035) 46%, rgba(255, 255, 255, 0.065)),
+    radial-gradient(circle at 92% 0%, rgba(125, 249, 255, 0.14), transparent 14rem),
+    rgba(7, 12, 29, 0.74);
+  --lg-surface-muted:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.032)),
+    rgba(7, 12, 29, 0.62);
+
+  /* Surfaces */
+  --bd-bg-app: var(--lg-bg-0);
+  --bd-bg-card: rgba(7, 12, 29, 0.76);
+  --bd-bg-card-muted: rgba(255, 255, 255, 0.06);
+  --bd-bg-input: rgba(4, 8, 22, 0.62);
+  --bd-bg-header: rgba(7, 12, 29, 0.72);
+
+  /* Brand */
+  --bd-primary: var(--lg-cyan);
+  --bd-primary-hover: var(--lg-mint);
+  --bd-primary-soft: rgba(125, 249, 255, 0.12);
+  --bd-primary-ring: rgba(125, 249, 255, 0.34);
+
+  /* Typography colors */
+  --bd-text-heading: var(--lg-text);
+  --bd-text-body: var(--lg-text-soft);
+  --bd-text-muted: var(--lg-text-muted);
+  --bd-text-inverse: #ffffff;
+
+  /* Semantic */
+  --bd-success: var(--lg-mint);
+  --bd-danger: #fe5c73;
+  --bd-warning: var(--lg-amber);
+  --bd-info: var(--lg-cyan);
+
+  /* Chart accents */
+  --bd-chart-teal: #16dbcc;
+  --bd-chart-pink: #fe5c73;
+  --bd-chart-orange: #ff7c5c;
+  --bd-chart-navy: #343c6a;
+
+  /* Borders & depth */
+  --bd-border: var(--lg-border);
+  --bd-border-strong: var(--lg-border-strong);
+  --bd-radius-card: var(--lg-radius-xl);
+  --bd-radius-widget: var(--lg-radius-lg);
+  --bd-radius-pill: 999px;
+  --bd-radius-control: 16px;
+  --bd-shadow-card: var(--lg-shadow);
+  --bd-shadow-card-hover: 0 28px 78px rgba(0, 0, 0, 0.48), 0 0 42px rgba(125, 249, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --bd-shadow-header: 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 42px rgba(0, 0, 0, 0.24);
+
+  /* Layout */
+  --bd-header-height: 72px;
+  --bd-page-pad-x: clamp(16px, 3vw, 28px);
+  --bd-page-pad-y: clamp(16px, 2.5vw, 28px);
+  --bd-section-gap: clamp(18px, 2.5vw, 28px);
+  --bd-content-max: 1400px;
+  --bd-touch-min: 44px;
+
+  /* Motion */
+  --bd-motion-fast: 140ms;
+  --bd-motion-base: 220ms;
+  --bd-motion-slow: 360ms;
+  --bd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --bd-ease-spring: cubic-bezier(0.34, 1.28, 0.64, 1);
+
+  /* Widget bridge (existing fh-* components) */
+  --fh-widget-radius: var(--bd-radius-widget);
+  --fh-widget-pad: 20px;
+  --fh-widget-gap: var(--bd-section-gap);
+  --fh-widget-accent: var(--bd-primary);
+  --fh-widget-bg: var(--bd-bg-app);
+  --fh-widget-panel: var(--bd-bg-card);
+  --fh-widget-border: var(--bd-border);
+  --fh-widget-shadow: var(--bd-shadow-card);
+}
+
+.dark {
+  --bd-bg-app: #0f1419;
+  --bd-bg-card: #161b22;
+  --bd-bg-card-muted: #1a212b;
+  --bd-bg-input: #1e2630;
+  --bd-bg-header: rgba(22, 27, 34, 0.94);
+  --bd-text-heading: #e8edf5;
+  --bd-text-body: #b6c2d6;
+  --bd-text-muted: #8b9bb5;
+  --bd-border: rgba(255, 255, 255, 0.08);
+  --bd-border-strong: rgba(255, 255, 255, 0.12);
+  --bd-primary-soft: rgba(24, 20, 243, 0.18);
+  --bd-shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --bd-shadow-card-hover: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --fh-widget-bg: var(--bd-bg-app);
+  --fh-widget-panel: var(--bd-bg-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --bd-motion-fast: 0ms;
+    --bd-motion-base: 0ms;
+    --bd-motion-slow: 0ms;
+  }
+}

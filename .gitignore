@@ -1,22 +1,27 @@
-# dependencies
-node_modules/
-
-# build
-dist/
-
-# env files
-.env
-.env.*
-!.env.example
-
-# caches
-.vite/
-
-# logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# OS files
+# Local Netlify folder
+.netlify
+node_modules
+dist
 .DS_Store
+.env
+.env.local
+*.tsbuildinfo
+
+# Supabase CLI (local)
+supabase/.temp
+node_modules/
+dist/
+.netlify/
+.env
+.env.local
+.env.production
+.DS_Store
+backups/
+checkpoints/
+.design-ref/
+.zip-inspect/
+.tmp-pantry-export/
+server_DISABLED/
+
+# Vendored zip extracts (runtime uses npm chart.js + src/assets/feather)
+vendor/
