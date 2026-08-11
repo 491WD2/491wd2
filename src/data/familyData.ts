@@ -1355,6 +1355,50 @@ const CANONICAL_MEMBER_COLOR_THEMES: (typeof memberColorThemes)[number][] = [
   "emerald",
 ];
 
+/** Local YYYY-MM-DD offset from today for seed planner events. */
+function seedPlannerDate(daysFromToday: number): string {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + daysFromToday);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Fresh household planner samples anchored to the current week. */
+export function createSeedPlannerEvents(): PlannerEvent[] {
+  return [
+    {
+      id: "plan-1",
+      title: "Family planning reset",
+      date: seedPlannerDate(0),
+      time: "18:30",
+      category: "Family",
+      assignedMemberId: "member-1",
+      assignedPerson: "Lorraine",
+    },
+    {
+      id: "plan-2",
+      title: "Taco night",
+      date: seedPlannerDate(2),
+      time: "17:30",
+      category: "Meals",
+      assignedMemberId: "",
+      assignedPerson: "Family",
+    },
+    {
+      id: "plan-3",
+      title: "School forms due",
+      date: seedPlannerDate(3),
+      time: "08:00",
+      category: "School",
+      assignedMemberId: "member-3",
+      assignedPerson: "Stella",
+    },
+  ];
+}
+
 /** Stable IDs `member-1`… match bundled seed tasks and projects; Selena is `member-6`. */
 export function createCanonicalHouseholdFamilyMembers(): FamilyMember[] {
   return CANONICAL_HOUSEHOLD_ROSTER_NAMES.map((name, index) => {
@@ -1785,35 +1829,7 @@ export const initialFamilyData: FamilyData = {
       destination: "Family Room Freezer",
     },
   ],
-  planner: [
-    {
-      id: "plan-1",
-      title: "Family planning reset",
-      date: "2026-05-04",
-      time: "18:30",
-      category: "Family",
-      assignedMemberId: "member-1",
-      assignedPerson: "Lorraine",
-    },
-    {
-      id: "plan-2",
-      title: "Taco night",
-      date: "2026-05-06",
-      time: "17:30",
-      category: "Meals",
-      assignedMemberId: "",
-      assignedPerson: "Family",
-    },
-    {
-      id: "plan-3",
-      title: "School forms due",
-      date: "2026-05-07",
-      time: "08:00",
-      category: "School",
-      assignedMemberId: "member-3",
-      assignedPerson: "Stella",
-    },
-  ],
+  planner: createSeedPlannerEvents(),
   calendarLinks: [
     {
       id: "calendar-491er-family",
