@@ -1,12 +1,19 @@
 # 491WD2 FamilyHub
 
-Primary UI is the **Figma Make FamilyHub shell** (`src/familyhub`) — always-on **Home** wake page.
+**This is the combined household app** (`491WD2/491wd2`). It includes the former `491wd2-app` codebase plus the Figma Make FamilyHub shell.
 
-**This pass:** removed Projects / Photos / Routines / Kiosk from the shell; added **Passwords** under Subscriptions; kept FamilyData + legacy AdminUX code in-repo for bridging.
+Primary UI: `src/familyhub` — always-on **Home** wake page, Desktop/App preview toggle, Subscriptions & Passwords vault. Projects / Photos / Routines / Kiosk removed from the shell. FamilyData persists in localStorage.
 
+```bash
+npm install
+npm run dev
+```
 
+Open **http://localhost:5173/** — use **Desktop view** or **App view** at the top.
 
-Family / household web app with an integrated **UI Builder**, **Saved UI Preview**, **Apply to My Build**, and an in-app **Help Center** (static documentation and search).
+---
+
+Legacy notes (AdminUX / Help Center / UI Builder still in-repo):
 
 ## Help Center & hover tips
 
@@ -16,7 +23,6 @@ Family / household web app with an integrated **UI Builder**, **Saved UI Preview
 ## Frontend dev & build
 
 ```bash
-cd /Users/stellaroskens/491WD2
 npm install
 npm run dev
 ```
