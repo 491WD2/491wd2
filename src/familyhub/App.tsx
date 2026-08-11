@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Home, MessageSquare, Calendar, ShoppingCart, Package,
   Wrench, AlertTriangle, Heart, CreditCard, FolderOpen,
@@ -10,6 +10,37 @@ import {
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
   Monitor, Tablet,
 } from 'lucide-react';
+import { useFamilyData } from '../hooks/useFamilyData';
+import {
+  addPantryItem as bridgeAddPantry,
+  addShoppingItem as bridgeAddShopping,
+  deleteShoppingItem as bridgeDeleteShopping,
+  mapHubChores,
+  mapHubDocs,
+  mapHubEvents,
+  mapHubMembers,
+  mapHubMessages,
+  mapHubNotifications,
+  mapHubPantry,
+  mapHubPasswords,
+  mapHubPets,
+  mapHubShopping,
+  mapHubSubscriptions,
+  toggleChoreDone as bridgeToggleChore,
+  toggleShoppingPurchased,
+  updatePantryQuantity,
+  type HubChore,
+  type HubDoc,
+  type HubEvent,
+  type HubMember,
+  type HubMessage,
+  type HubNotification,
+  type HubPantryItem,
+  type HubPassword,
+  type HubPet,
+  type HubShoppingItem,
+  type HubSubscription,
+} from './bridge';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +53,35 @@ type View =
 
 const PREVIEW_STORAGE_KEY = '491wd-preview-mode';
 
+type HubContextValue = {
+  members: HubMember[];
+  shoppingItems: HubShoppingItem[];
+  pantryItems: HubPantryItem[];
+  chores: HubChore[];
+  events: HubEvent[];
+  messages: HubMessage[];
+  pets: HubPet[];
+  subscriptions: HubSubscription[];
+  passwords: HubPassword[];
+  notifications: HubNotification[];
+  docs: HubDoc[];
+  toggleShoppingItem: (id: string) => void;
+  deleteShoppingItem: (id: string) => void;
+  addShoppingItem: (name: string, qty: string) => void;
+  updatePantryStock: (id: string, qty: number) => void;
+  addPantryItem: (name: string, qty: string) => void;
+  toggleChore: (id: string) => void;
+};
+
+const HubContext = createContext<HubContextValue | null>(null);
+
+function useHub(): HubContextValue {
+  const ctx = useContext(HubContext);
+  if (!ctx) throw new Error('useHub must be used inside FamilyHub');
+  return ctx;
+}
+
+
 interface NavItem {
   id: View;
   label: string;
@@ -32,15 +92,7 @@ interface NavItem {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-/** Canonical household roster from FamilyData — wake-page display order. */
-const FAMILY_MEMBERS = [
-  { id: 'member-2', name: 'Hershel',  color: '#4F46E5', bg: '#EEF2FF' },
-  { id: 'member-1', name: 'Lorraine', color: '#DB2777', bg: '#FCE7F3' },
-  { id: 'member-3', name: 'Stella',   color: '#D97706', bg: '#FEF3C7' },
-  { id: 'member-4', name: 'Nox',      color: '#059669', bg: '#D1FAE5' },
-  { id: 'member-5', name: 'Jeremiah', color: '#7C3AED', bg: '#EDE9FE' },
-  { id: 'member-6', name: 'Selena',   color: '#EA580C', bg: '#FFEDD5' },
-];
+/* FAMILY_MEMBERS served via useHub().members */
 
 const CATEGORY_COLORS: Record<string, string> = {
   Dairy: '#0EA5E9', Bakery: '#F59E0B', Produce: '#10B981',
@@ -50,83 +102,17 @@ const CATEGORY_COLORS: Record<string, string> = {
   Condiments: '#14B8A6', Household: '#6366F1',
 };
 
-const INITIAL_SHOPPING = [
-  { id: '1', name: 'Whole milk',      qty: '1 gallon', category: 'Dairy',    checked: false, addedBy: 'Lorraine' },
-  { id: '2', name: 'Sourdough bread', qty: '1 loaf',   category: 'Bakery',   checked: false, addedBy: 'Hershel'  },
-  { id: '3', name: 'Eggs',            qty: '2 dozen',  category: 'Dairy',    checked: true,  addedBy: 'Stella'   },
-  { id: '4', name: 'Roma tomatoes',   qty: '6',        category: 'Produce',  checked: false, addedBy: 'Lorraine' },
-  { id: '5', name: 'Chicken breast',  qty: '3 lbs',    category: 'Meat',     checked: false, addedBy: 'Jeremiah' },
-  { id: '6', name: 'Greek yogurt',    qty: '2 cups',   category: 'Dairy',    checked: false, addedBy: 'Selena'   },
-  { id: '7', name: 'Spinach',         qty: '1 bag',    category: 'Produce',  checked: true,  addedBy: 'Nox'      },
-  { id: '8', name: 'Cheddar cheese',  qty: '8 oz',     category: 'Dairy',    checked: false, addedBy: 'Hershel'  },
-];
+/* EVENTS via useHub */
 
-type PantryStatus = 'out' | 'low' | 'ok' | 'good';
-type PantryItem = {
-  id: string; name: string; qty: number; max: number; unit: string;
-  category: string; expiry: string | null; status: PantryStatus;
-};
+/* MESSAGES via useHub */
 
-const INITIAL_PANTRY: PantryItem[] = [
-  { id: '1',  name: 'All-purpose flour', qty: 0.5, max: 5,  unit: 'lbs',     category: 'Baking',     expiry: '2025-08', status: 'low'  as const },
-  { id: '2',  name: 'Olive oil',         qty: 0,   max: 2,  unit: 'bottles', category: 'Oils',       expiry: null,      status: 'out'  as const },
-  { id: '3',  name: 'White rice',        qty: 8,   max: 10, unit: 'lbs',     category: 'Grains',     expiry: '2026-01', status: 'good' as const },
-  { id: '4',  name: 'Black beans',       qty: 3,   max: 6,  unit: 'cans',    category: 'Canned',     expiry: '2025-12', status: 'ok'   as const },
-  { id: '5',  name: 'Pasta (penne)',     qty: 1,   max: 4,  unit: 'boxes',   category: 'Grains',     expiry: '2025-10', status: 'low'  as const },
-  { id: '6',  name: 'Chicken broth',     qty: 0,   max: 3,  unit: 'cartons', category: 'Canned',     expiry: null,      status: 'out'  as const },
-  { id: '7',  name: 'Soy sauce',         qty: 1,   max: 2,  unit: 'bottles', category: 'Condiments', expiry: '2026-03', status: 'good' as const },
-  { id: '8',  name: 'Rolled oats',       qty: 2,   max: 4,  unit: 'lbs',     category: 'Baking',     expiry: '2025-11', status: 'ok'   as const },
-  { id: '9',  name: 'Canned tomatoes',   qty: 5,   max: 8,  unit: 'cans',    category: 'Canned',     expiry: '2026-06', status: 'good' as const },
-  { id: '10', name: 'Honey',             qty: 0.3, max: 2,  unit: 'jars',    category: 'Baking',     expiry: null,      status: 'low'  as const },
-  { id: '11', name: 'Vegetable broth',   qty: 2,   max: 4,  unit: 'cartons', category: 'Canned',     expiry: '2026-02', status: 'ok'   as const },
-  { id: '12', name: 'Coconut milk',      qty: 3,   max: 4,  unit: 'cans',    category: 'Canned',     expiry: '2026-05', status: 'good' as const },
-];
+/* CHORES via useHub */
 
-const EVENTS = [
-  { id: '1', title: "Stella's soccer practice", date: 'Today',    time: '3:30 PM', color: '#D97706', who: 'Stella'   },
-  { id: '2', title: 'Dentist — Lorraine',        date: 'Tomorrow', time: '10:00 AM', color: '#DB2777', who: 'Lorraine' },
-  { id: '3', title: 'Car insurance due',          date: 'Aug 14',   time: 'All day', color: '#EF4444', who: 'Family'   },
-  { id: '4', title: "Jeremiah's school play",     date: 'Aug 17',   time: '7:00 PM', color: '#7C3AED', who: 'Jeremiah' },
-  { id: '5', title: 'Vet appointment — Luna',     date: 'Aug 20',   time: '2:15 PM', color: '#059669', who: 'Nox'      },
-];
+/* PETS via useHub */
 
-const MESSAGES = [
-  { id: '1', from: 'Lorraine', text: 'Can someone pick up Stella at 5pm today?', time: '2m ago',  read: false },
-  { id: '2', from: 'Hershel',  text: "I'll grab the groceries on the way home",   time: '14m ago', read: false },
-  { id: '3', from: 'Nox',      text: 'Luna needs her heartworm pill today!',       time: '1h ago',  read: true  },
-  { id: '4', from: 'Stella',   text: 'My science project is due Friday btw',       time: '3h ago',  read: true  },
-];
+/* SUBSCRIPTIONS via useHub */
 
-const CHORES = [
-  { id: '1', task: 'Vacuum living room',       assigned: 'Jeremiah', due: 'Today',     done: false },
-  { id: '2', task: 'Wipe down counters',       assigned: 'Stella',   due: 'Today',     done: true  },
-  { id: '3', task: 'Take out recycling',       assigned: 'Nox',      due: 'Tomorrow',  done: false },
-  { id: '4', task: 'Mop kitchen floor',        assigned: 'Lorraine', due: 'Saturday',  done: false },
-  { id: '5', task: 'Clean bathroom sink',      assigned: 'Selena',   due: 'Today',     done: false },
-  { id: '6', task: 'Empty dishwasher',         assigned: 'Stella',   due: 'Tomorrow',  done: false },
-];
-
-const PETS = [
-  { id: '1', name: 'Luna',    type: 'Dog',  breed: 'Golden Retriever', age: '4 yrs', color: '#D97706', tasks: ['Heartworm pill due TODAY', 'Next vet: Aug 20'] },
-  { id: '2', name: 'Miso',    type: 'Cat',  breed: 'Tabby Mix',        age: '2 yrs', color: '#8B5CF6', tasks: ['Flea treatment: Aug 12']                        },
-  { id: '3', name: 'Archie',  type: 'Fish', breed: 'Betta',            age: '1 yr',  color: '#0EA5E9', tasks: ['Water change: Aug 10']                          },
-];
-
-const SUBSCRIPTIONS = [
-  { id: '1', name: 'Netflix',        amount: 22.99,  cycle: 'Monthly',  due: 'Aug 15', color: '#EF4444' },
-  { id: '2', name: 'Spotify Family', amount: 16.99,  cycle: 'Monthly',  due: 'Aug 18', color: '#10B981' },
-  { id: '3', name: 'Amazon Prime',   amount: 139,    cycle: 'Yearly',   due: 'Nov 3',  color: '#F59E0B' },
-  { id: '4', name: 'Gym — LA Fitness',amount: 45,    cycle: 'Monthly',  due: 'Aug 22', color: '#4F46E5' },
-  { id: '5', name: 'Disney+',        amount: 13.99,  cycle: 'Monthly',  due: 'Aug 28', color: '#1D4ED8' },
-  { id: '6', name: 'iCloud 2TB',     amount: 9.99,   cycle: 'Monthly',  due: 'Sep 1',  color: '#6B7280' },
-];
-
-const PASSWORDS = [
-  { id: '1', label: 'Home Wi‑Fi', username: '491WD2-Family', hint: 'Router card in kitchen drawer', color: '#4F46E5' },
-  { id: '2', label: 'Streaming PIN', username: 'Kids profile', hint: 'Ask parent for code', color: '#EC4899' },
-  { id: '3', label: 'School Portal', username: 'stella@school.edu', hint: 'Password manager entry', color: '#D97706' },
-  { id: '4', label: 'Utilities account', username: 'hershel@home', hint: 'Shared vault — adults only', color: '#059669' },
-];
+/* PASSWORDS via useHub */
 
 
 
@@ -221,6 +207,7 @@ const SYSTEM_NAV: NavItem[] = [
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
+  const { members: FAMILY_MEMBERS } = useHub();
   function NavLink({ item }: { item: NavItem }) {
     const active = current === item.id;
     const Icon = item.icon;
@@ -419,11 +406,12 @@ function WeatherStrip() {
 function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, onToggleChore }: {
   onNavigate: (v: View) => void;
   onQuickAdd: (mode: 'shopping' | 'pantry') => void;
-  shoppingItems: typeof INITIAL_SHOPPING;
-  pantryItems: typeof INITIAL_PANTRY;
-  chores: typeof CHORES;
+  shoppingItems: HubShoppingItem[];
+  pantryItems: HubPantryItem[];
+  chores: HubChore[];
   onToggleChore: (id: string) => void;
 }) {
+  const { members: FAMILY_MEMBERS, messages: MESSAGES, events: EVENTS } = useHub();
   const unchecked = shoppingItems.filter(i => !i.checked);
   const alerts = pantryItems.filter(i => i.status === 'out' || i.status === 'low');
   const outCount = pantryItems.filter(i => i.status === 'out').length;
@@ -652,11 +640,12 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
 // ── Shopping Page ─────────────────────────────────────────────────────────────
 
 function ShoppingView({ items, onToggle, onDelete, onAdd }: {
-  items: typeof INITIAL_SHOPPING;
+  items: HubShoppingItem[];
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onAdd: (name: string, qty: string) => void;
 }) {
+  const { members: FAMILY_MEMBERS } = useHub();
   const [tab, setTab] = useState<'current' | 'saved' | 'shared'>('current');
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
@@ -889,7 +878,7 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
 // ── Pantry Page ───────────────────────────────────────────────────────────────
 
 function PantryView({ items, onUpdateStock, onAdd }: {
-  items: typeof INITIAL_PANTRY;
+  items: HubPantryItem[];
   onUpdateStock: (id: string, qty: number) => void;
   onAdd: (name: string, qty: string) => void;
 }) {
@@ -1102,13 +1091,16 @@ function PantryView({ items, onUpdateStock, onAdd }: {
 // ── Messages Page ─────────────────────────────────────────────────────────────
 
 function MessagesView() {
+  const { members: FAMILY_MEMBERS, messages: boardMessages } = useHub();
+  void boardMessages;
+
   const [selected, setSelected] = useState<string | null>('family');
   const [newMsg, setNewMsg] = useState('');
 
   const THREADS = [
     { id: 'family', name: 'Family Group', lastMsg: 'Lorraine: Can someone pick up Stella…', time: '2m', unread: 2, members: FAMILY_MEMBERS },
-    { id: 'hershel', name: 'Hershel', lastMsg: "I'll grab the groceries on the way home", time: '14m', unread: 0, members: [FAMILY_MEMBERS[0]] },
-    { id: 'lorraine', name: 'Lorraine', lastMsg: 'Thanks for handling dinner!', time: '1h', unread: 1, members: [FAMILY_MEMBERS[1]] },
+    { id: 'hershel', name: 'Hershel', lastMsg: "I'll grab the groceries on the way home", time: '14m', unread: 0, members: FAMILY_MEMBERS.slice(0, 1) },
+    { id: 'lorraine', name: 'Lorraine', lastMsg: 'Thanks for handling dinner!', time: '1h', unread: 1, members: FAMILY_MEMBERS.slice(1, 2) },
   ];
 
   const CONVO = [
@@ -1208,6 +1200,8 @@ function MessagesView() {
 // ── Calendar Page ─────────────────────────────────────────────────────────────
 
 function CalendarView() {
+  const { members: FAMILY_MEMBERS, events: EVENTS } = useHub();
+
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const today = new Date();
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -1285,7 +1279,8 @@ function CalendarView() {
 
 // ── Cleaning Page ─────────────────────────────────────────────────────────────
 
-function CleaningView({ chores, onToggle }: { chores: typeof CHORES; onToggle: (id: string) => void }) {
+function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id: string) => void }) {
+  const { members: FAMILY_MEMBERS } = useHub();
   const today = chores.filter(c => c.due === 'Today');
   const upcoming = chores.filter(c => c.due !== 'Today');
 
@@ -1406,6 +1401,8 @@ function EmergencyView() {
 // ── Pets Page ─────────────────────────────────────────────────────────────────
 
 function PetsView() {
+  const { pets: PETS } = useHub();
+
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
@@ -1451,6 +1448,8 @@ function PetsView() {
 // ── Subscriptions & Passwords Page ────────────────────────────────────────────
 
 function SubscriptionsView() {
+  const { subscriptions: SUBSCRIPTIONS, passwords: PASSWORDS } = useHub();
+
   const [tab, setTab] = useState<'billing' | 'passwords'>('billing');
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const monthly = SUBSCRIPTIONS.filter(s => s.cycle === 'Monthly');
@@ -1534,34 +1533,28 @@ function SubscriptionsView() {
 // ── Planner Page ──────────────────────────────────────────────────────────────
 
 function PlannerView() {
-  const days = ['Mon Aug 7','Tue Aug 8','Wed Aug 9','Thu Aug 10','Fri Aug 11'];
-  const TASKS_BY_DAY: Record<string, { text: string; member: string; done: boolean }[]> = {
-    'Mon Aug 7': [
-      { text: "Stella's soccer practice 3:30 PM", member: 'Stella', done: false },
-      { text: 'Grocery run', member: 'Hershel', done: false },
-    ],
-    'Tue Aug 8': [
-      { text: 'Dentist — Lorraine 10 AM', member: 'Lorraine', done: false },
-      { text: 'Vacuum living room', member: 'Jeremiah', done: false },
-    ],
-    'Wed Aug 9': [{ text: 'Vet appointment Luna 2:15 PM', member: 'Nox', done: false }],
-    'Thu Aug 10': [{ text: 'Water change — Archie', member: 'Nox', done: false }],
-    'Fri Aug 11': [
-      { text: "Jeremiah's science project due", member: 'Jeremiah', done: false },
-      { text: 'Weekend meal prep', member: 'Lorraine', done: false },
-    ],
-  };
+  const { members: FAMILY_MEMBERS, events } = useHub();
+  const days = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay() + 1 + i); // Mon-Fri of current week
+    return d;
+  });
+  const dayLabels = days.map(d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+  const todayKey = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-stone-900">Weekly Planner</h1>
-        <span className="text-sm text-stone-500">Aug 7 – 11, 2026</span>
+        <span className="text-sm text-stone-500">{dayLabels[0]} – {dayLabels[dayLabels.length - 1]}</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-        {days.map(day => {
-          const tasks = TASKS_BY_DAY[day] || [];
-          const isToday = day.startsWith('Mon');
+        {dayLabels.map((day, index) => {
+          const dateObj = days[index];
+          const tasks = events
+            .filter(e => (e.date === 'Today' && day === todayKey) || e.date.includes(String(dateObj.getDate())))
+            .map(e => ({ text: `${e.title} ${e.time}`, member: e.who, done: false }));
+          const isToday = day === todayKey;
           return (
             <div key={day} className={`rounded-2xl border p-4 ${isToday ? 'border-indigo-200 bg-indigo-50' : 'bg-white border-stone-100'}`}>
               <div className={`text-xs font-semibold mb-3 ${isToday ? 'text-indigo-600' : 'text-stone-400'}`}>
@@ -1591,6 +1584,8 @@ function PlannerView() {
 // ── Family Members Page ───────────────────────────────────────────────────────
 
 function FamilyMembersView() {
+  const { members: FAMILY_MEMBERS } = useHub();
+
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
@@ -1621,15 +1616,14 @@ function FamilyMembersView() {
 // ── Notifications Page ────────────────────────────────────────────────────────
 
 function NotificationsView() {
-  const NOTES = [
-    { id: '1', title: 'Pantry low stock', body: 'Olive oil and pasta need restocking.', time: '10m', unread: true },
-    { id: '2', title: 'Chore due today', body: 'Vacuum living room — Jeremiah', time: '1h', unread: true },
-    { id: '3', title: 'Pet reminder', body: 'Luna heartworm pill due today', time: '2h', unread: false },
-  ];
+  const { notifications: NOTES } = useHub();
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-xl font-semibold text-stone-900 mb-6">Notifications</h1>
       <div className="space-y-2">
+        {NOTES.length === 0 ? (
+          <Card className="p-6 text-sm text-stone-500">No notifications yet — you are all caught up.</Card>
+        ) : null}
         {NOTES.map(n => (
           <Card key={n.id} className={`p-4 flex items-start gap-3 ${n.unread ? '' : 'opacity-70'}`}>
             <div className="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center flex-shrink-0">
@@ -1653,11 +1647,7 @@ function NotificationsView() {
 // ── Docs & Help Page ──────────────────────────────────────────────────────────
 
 function DocsView() {
-  const DOCS = [
-    { id: '1', title: 'Getting started', body: 'Wake page, quick add, and family check-in.' },
-    { id: '2', title: 'Shopping & pantry', body: 'How lists sync with inventory alerts.' },
-    { id: '3', title: 'Subscriptions & passwords', body: 'Billing tracker plus the household vault.' },
-  ];
+  const { docs: DOCS } = useHub();
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-xl font-semibold text-stone-900 mb-2">Docs & Help</h1>
@@ -1782,7 +1772,9 @@ function PreviewModeToggle({
 
 // ── App Root ──────────────────────────────────────────────────────────────────
 
+
 export default function App() {
+  const [data, setData] = useFamilyData();
   const [view, setView] = useState<View>('home');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [quickAddMode, setQuickAddMode] = useState<'shopping' | 'pantry' | null>(null);
@@ -1795,47 +1787,36 @@ export default function App() {
     }
   });
 
-  const [shoppingItems, setShoppingItems] = useState(INITIAL_SHOPPING);
-  const [pantryItems, setPantryItems] = useState(INITIAL_PANTRY);
-  const [chores, setChores] = useState(CHORES);
-
-  const toggleShoppingItem = (id: string) =>
-    setShoppingItems(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-
-  const deleteShoppingItem = (id: string) =>
-    setShoppingItems(prev => prev.filter(i => i.id !== id));
-
-  const addShoppingItem = (name: string, qty: string) =>
-    setShoppingItems(prev => [...prev, {
-      id: String(Date.now()), name, qty, category: 'Pantry', checked: false, addedBy: 'Me'
-    }]);
-
-  const updatePantryStock = (id: string, qty: number) =>
-    setPantryItems(prev => prev.map(i => {
-      if (i.id !== id) return i;
-      const pct = qty / i.max;
-      const status: PantryStatus = qty <= 0 ? 'out' : pct < 0.25 ? 'low' : pct < 0.5 ? 'ok' : 'good';
-      return { ...i, qty, status };
-    }));
-
-  const addPantryItem = (name: string, qty: string) =>
-    setPantryItems(prev => [...prev, {
-      id: String(Date.now()), name, qty: parseFloat(qty) || 1, max: 4, unit: 'items',
-      category: 'Pantry', expiry: null, status: 'good' as const
-    }]);
-
-  const toggleChore = (id: string) =>
-    setChores(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
+  const hub = useMemo<HubContextValue>(() => {
+    return {
+      members: mapHubMembers(data),
+      shoppingItems: mapHubShopping(data),
+      pantryItems: mapHubPantry(data),
+      chores: mapHubChores(data),
+      events: mapHubEvents(data),
+      messages: mapHubMessages(data),
+      pets: mapHubPets(data),
+      subscriptions: mapHubSubscriptions(),
+      passwords: mapHubPasswords(),
+      notifications: mapHubNotifications(data),
+      docs: mapHubDocs(data),
+      toggleShoppingItem: (id) => setData((prev) => toggleShoppingPurchased(prev, id)),
+      deleteShoppingItem: (id) => setData((prev) => bridgeDeleteShopping(prev, id)),
+      addShoppingItem: (name, qty) => setData((prev) => bridgeAddShopping(prev, name, qty)),
+      updatePantryStock: (id, qty) => setData((prev) => updatePantryQuantity(prev, id, qty)),
+      addPantryItem: (name, qty) => setData((prev) => bridgeAddPantry(prev, name, qty)),
+      toggleChore: (id) => setData((prev) => bridgeToggleChore(prev, id)),
+    };
+  }, [data]);
 
   useEffect(() => {
     try {
       localStorage.setItem(PREVIEW_STORAGE_KEY, previewMode);
     } catch {
-      /* ignore quota / private mode */
+      /* ignore */
     }
   }, [previewMode]);
 
-  // Auto-collapse sidebar on small screens (desktop preview only)
   useEffect(() => {
     const check = () => {
       if (previewMode === 'app') {
@@ -1851,20 +1832,56 @@ export default function App() {
 
   const renderView = () => {
     switch (view) {
-      case 'home':         return <HomeView onNavigate={setView} onQuickAdd={setQuickAddMode} shoppingItems={shoppingItems} pantryItems={pantryItems} chores={chores} onToggleChore={toggleChore} />;
-      case 'messages':     return <MessagesView />;
-      case 'calendar':     return <CalendarView />;
-      case 'shopping':     return <ShoppingView items={shoppingItems} onToggle={toggleShoppingItem} onDelete={deleteShoppingItem} onAdd={addShoppingItem} />;
-      case 'pantry':       return <PantryView items={pantryItems} onUpdateStock={updatePantryStock} onAdd={addPantryItem} />;
-      case 'cleaning':     return <CleaningView chores={chores} onToggle={toggleChore} />;
-      case 'emergency':    return <EmergencyView />;
-      case 'pets':         return <PetsView />;
-      case 'subscriptions':return <SubscriptionsView />;
-      case 'planner':      return <PlannerView />;
-      case 'family':       return <FamilyMembersView />;
-      case 'notifications':return <NotificationsView />;
-      case 'docs':         return <DocsView />;
-      case 'settings':     return <SettingsView />;
+      case 'home':
+        return (
+          <HomeView
+            onNavigate={setView}
+            onQuickAdd={setQuickAddMode}
+            shoppingItems={hub.shoppingItems}
+            pantryItems={hub.pantryItems}
+            chores={hub.chores}
+            onToggleChore={hub.toggleChore}
+          />
+        );
+      case 'messages':
+        return <MessagesView />;
+      case 'calendar':
+        return <CalendarView />;
+      case 'shopping':
+        return (
+          <ShoppingView
+            items={hub.shoppingItems}
+            onToggle={hub.toggleShoppingItem}
+            onDelete={hub.deleteShoppingItem}
+            onAdd={hub.addShoppingItem}
+          />
+        );
+      case 'pantry':
+        return (
+          <PantryView
+            items={hub.pantryItems}
+            onUpdateStock={hub.updatePantryStock}
+            onAdd={hub.addPantryItem}
+          />
+        );
+      case 'cleaning':
+        return <CleaningView chores={hub.chores} onToggle={hub.toggleChore} />;
+      case 'emergency':
+        return <EmergencyView />;
+      case 'pets':
+        return <PetsView />;
+      case 'subscriptions':
+        return <SubscriptionsView />;
+      case 'planner':
+        return <PlannerView />;
+      case 'family':
+        return <FamilyMembersView />;
+      case 'notifications':
+        return <NotificationsView />;
+      case 'docs':
+        return <DocsView />;
+      case 'settings':
+        return <SettingsView />;
     }
   };
 
@@ -1874,7 +1891,7 @@ export default function App() {
         current={view}
         onChange={setView}
         collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(p => !p)}
+        onToggle={() => setSidebarCollapsed((p) => !p)}
       />
       <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
         {renderView()}
@@ -1885,8 +1902,8 @@ export default function App() {
           mode={quickAddMode}
           onClose={() => setQuickAddMode(null)}
           onAdd={(name, qty) => {
-            if (quickAddMode === 'shopping') addShoppingItem(name, qty);
-            else addPantryItem(name, qty);
+            if (quickAddMode === 'shopping') hub.addShoppingItem(name, qty);
+            else hub.addPantryItem(name, qty);
           }}
         />
       )}
@@ -1894,35 +1911,37 @@ export default function App() {
   );
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-stone-950">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
-        <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
-      </div>
+    <HubContext.Provider value={hub}>
+      <div className="relative h-screen w-screen overflow-hidden bg-stone-950">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
+          <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
+        </div>
 
-      {previewMode === 'desktop' ? (
-        <div className="h-full w-full pt-14">{shell}</div>
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#292524_0%,#0c0a09_55%)] px-4 pb-6 pt-16">
-          <div className="flex w-full max-w-[1180px] flex-col items-center gap-3">
-            <div className="text-center text-xs font-medium tracking-wide text-stone-400">
-              App view · landscape tablet frame (wall display)
-            </div>
-            <div
-              className="w-full overflow-hidden rounded-[28px] border border-stone-700 bg-stone-900 shadow-[0_40px_80px_rgba(0,0,0,0.45)]"
-              style={{ aspectRatio: '16 / 10', maxHeight: 'min(820px, calc(100vh - 7.5rem))' }}
-            >
-              <div className="flex h-full flex-col p-3">
-                <div className="mb-2 flex items-center justify-center">
-                  <div className="h-1.5 w-24 rounded-full bg-stone-700" />
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#F8F6F2]">
-                  {shell}
+        {previewMode === 'desktop' ? (
+          <div className="h-full w-full pt-14">{shell}</div>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#292524_0%,#0c0a09_55%)] px-4 pb-6 pt-16">
+            <div className="flex w-full max-w-[1180px] flex-col items-center gap-3">
+              <div className="text-center text-xs font-medium tracking-wide text-stone-400">
+                App view · landscape tablet frame (wall display)
+              </div>
+              <div
+                className="w-full overflow-hidden rounded-[28px] border border-stone-700 bg-stone-900 shadow-[0_40px_80px_rgba(0,0,0,0.45)]"
+                style={{ aspectRatio: '16 / 10', maxHeight: 'min(820px, calc(100vh - 7.5rem))' }}
+              >
+                <div className="flex h-full flex-col p-3">
+                  <div className="mb-2 flex items-center justify-center">
+                    <div className="h-1.5 w-24 rounded-full bg-stone-700" />
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#F8F6F2]">
+                    {shell}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </HubContext.Provider>
   );
 }
