@@ -1,0 +1,21 @@
+{
+  "name": "FamilyHub",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "Vite Dev",
+      "command": "npm run dev -- --host 0.0.0.0 --port 5173 --strictPort",
+      "description": "FamilyHub Vite dev server on port 5173"
+    }
+  ],
+  "ports": [
+    {
+      "name": "Vite",
+      "port": 5173
+    },
+    {
+      "name": "Preview",
+      "port": 4173
+    }
+  ]
+}
