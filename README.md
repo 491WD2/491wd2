@@ -2,7 +2,9 @@
 
 **This is the combined household app** (`491WD2/491wd2`). It includes the former `491wd2-app` codebase plus the Figma Make FamilyHub shell.
 
-Primary UI: `src/familyhub` — always-on **Home** wake page, Desktop/App preview toggle, Subscriptions & Passwords vault. Projects / Photos / Routines / Kiosk removed from the shell. FamilyData persists in localStorage.
+Primary UI: `src/familyhub` — opens on **Home**. Subscriptions store password + who pays. Pantry supports custom storage places. Projects / Photos / Routines / Kiosk are out of the shell. FamilyData persists in localStorage.
+
+Figma Make scaffold/theme: `figma-make/` + `src/styles/default_shadcn_theme.css` (see `ATTRIBUTIONS.md`). Live app still uses the root Vite/PWA config — not Make’s `package.json`.
 
 ```bash
 npm install
