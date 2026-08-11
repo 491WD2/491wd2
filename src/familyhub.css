@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "./styles/figma-fonts.css";
 @import "./styles/figma-theme.css";
-@import "./styles/figma-reference-style.css";
 
 html,
 body,
@@ -11,7 +10,7 @@ body,
 }
 
 body {
-  font-family: "Inter", "DM Sans", system-ui, sans-serif;
-  background: #f8f7f5;
-  color: #111827;
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: #f8f6f2;
+  color: #1c1917;
 }

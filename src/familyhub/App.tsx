@@ -5,10 +5,10 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users, List, Image, Layers, RefreshCw,
+  Users, List, Image, Layers, RefreshCw, Cloud, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
-  Monitor, Tablet, AlertTriangle,
+  Monitor, Tablet,
 } from 'lucide-react';
 import type { Project } from '../data/familyData';
 import { useFamilyData } from '../hooks/useFamilyData';
@@ -190,7 +190,7 @@ function Card({ children, className = '', onClick }: { children: React.ReactNode
   return (
     <div
       onClick={onClick}
-      className={`figma-card ${onClick ? 'figma-card-hover' : ''} ${className}`}
+      className={`bg-white rounded-2xl border border-black/[0.06] shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow duration-200' : ''} ${className}`}
     >
       {children}
     </div>
@@ -208,10 +208,10 @@ function StockBar({ qty, max, status }: { qty: number; max: number; status: stri
 }
 
 function StatusChip({ status }: { status: string }) {
-  if (status === 'out')  return <span className="figma-chip figma-chip-rose">Out</span>;
-  if (status === 'low')  return <span className="figma-chip figma-chip-amber">Low</span>;
-  if (status === 'ok')   return <span className="figma-chip figma-chip-blue">OK</span>;
-  return <span className="figma-chip figma-chip-green">Good</span>;
+  if (status === 'out')  return <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">Out</span>;
+  if (status === 'low')  return <span className="text-xs font-semibold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">Low</span>;
+  if (status === 'ok')   return <span className="text-xs font-semibold text-sky-500 bg-sky-50 px-2 py-0.5 rounded-full">OK</span>;
+  return <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Good</span>;
 }
 
 function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: string; bg: string; size?: 'sm' | 'md' | 'lg' }) {
@@ -224,76 +224,53 @@ function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: stri
   );
 }
 
-// ── Sidebar (Figma reference mauve chrome) ────────────────────────────────────
+// ── Sidebar — matches https://floor-double-99844517.figma.site/ ───────────────
 
-const HOME_NAV: NavItem[] = [
-  { id: 'home', label: 'Home', icon: Home, color: '#8B5A7C' },
+const PRIMARY_NAV: NavItem[] = [
+  { id: 'home',          label: 'Home',                icon: Home,          color: '#4F46E5' },
+  { id: 'messages',      label: 'Messages',            icon: MessageSquare, color: '#DB2777' },
+  { id: 'calendar',      label: 'Calendar',            icon: Calendar,      color: '#D97706' },
+  { id: 'shopping',      label: 'Shopping',            icon: ShoppingCart,  color: '#10B981' },
+  { id: 'pantry',        label: 'Pantry & Inventory',  icon: Package,       color: '#84CC16' },
+  { id: 'cleaning',      label: 'Cleaning / Kitchen',  icon: Wrench,        color: '#0EA5E9' },
+  { id: 'emergency',     label: 'Emergency Planning',  icon: ShieldAlert,   color: '#EF4444' },
 ];
 
-const PLANNING_NAV: NavItem[] = [
-  { id: 'messages', label: 'Messages', icon: MessageSquare, color: '#8B5A7C' },
-  { id: 'calendar', label: 'Calendar', icon: Calendar, color: '#8B5A7C' },
-  { id: 'cleaning', label: 'Cleaning / Kitchen', icon: Wrench, color: '#8B5A7C' },
-  { id: 'emergency', label: 'Emergency Planning', icon: ShieldAlert, color: '#8B5A7C' },
-  { id: 'planner', label: 'Planner', icon: CalendarCheck, color: '#8B5A7C' },
+const TOOLS_NAV: NavItem[] = [
+  { id: 'pets',          label: 'Pets',           icon: PawPrint,      color: '#F97316' },
+  { id: 'subscriptions', label: 'Subscriptions',  icon: CreditCard,    color: '#8B5CF6' },
+  { id: 'projects',      label: 'Projects',       icon: Layers,        color: '#14B8A6' },
+  { id: 'photos',        label: 'Photos',         icon: Image,         color: '#EC4899' },
+  { id: 'planner',       label: 'Planner',        icon: CalendarCheck, color: '#3B82F6' },
+  { id: 'routines',      label: 'Routines',       icon: RefreshCw,     color: '#06B6D4' },
 ];
 
-const HOUSEHOLD_NAV: NavItem[] = [
-  { id: 'shopping', label: 'Shopping', icon: ShoppingCart, color: '#8B5A7C' },
-  { id: 'pantry', label: 'Pantry & Inventory', icon: Package, color: '#8B5A7C' },
-  { id: 'pets', label: 'Pets', icon: PawPrint, color: '#8B5A7C' },
-  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard, color: '#8B5A7C' },
-  { id: 'family', label: 'Family Members', icon: Users, color: '#8B5A7C' },
-  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#8B5A7C' },
-  { id: 'docs', label: 'Docs & Help', icon: FileText, color: '#8B5A7C' },
-];
-
-const COLLECTIONS_NAV: NavItem[] = [
-  { id: 'projects', label: 'Projects', icon: Layers, color: '#8B5A7C' },
-  { id: 'photos', label: 'Photos', icon: Image, color: '#8B5A7C' },
-  { id: 'routines', label: 'Routines', icon: RefreshCw, color: '#8B5A7C' },
-];
-
-const ACCOUNT_NAV: NavItem[] = [
-  { id: 'settings', label: 'Settings', icon: Settings, color: '#8B5A7C' },
-  { id: 'wall', label: 'Wall display', icon: Monitor, color: '#8B5A7C' },
+const SYSTEM_NAV: NavItem[] = [
+  { id: 'settings', label: 'Settings', icon: Settings, color: '#64748B' },
+  { id: 'family', label: 'Family Members', icon: Users, color: '#14B8A6' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#EC4899' },
+  { id: 'docs', label: 'Docs & Help', icon: FileText, color: '#06B6D4' },
+  { id: 'wall', label: 'Wall display', icon: Monitor, color: '#64748B' },
 ];
 
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const {
-    members: FAMILY_MEMBERS,
-    badges,
-    householdName,
-    activeMemberId,
-    setActiveMember,
-    setPreviewMode,
-  } = useHub();
-
-  const withBadges = (items: NavItem[]) =>
-    items.map((item) => {
-      if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
-      if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
-      if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
-      if (item.id === 'notifications' && badges.notifications > 0) {
-        return { ...item, badge: badges.notifications };
-      }
-      return item;
-    });
-
-  const sections: { label: string; items: NavItem[] }[] = [
-    { label: 'Primary', items: withBadges(HOME_NAV) },
-    { label: 'Planning', items: withBadges(PLANNING_NAV) },
-    { label: 'Household', items: withBadges(HOUSEHOLD_NAV) },
-    { label: 'Collections', items: withBadges(COLLECTIONS_NAV) },
-    { label: 'Account', items: withBadges(ACCOUNT_NAV) },
-  ];
-
-  const activeMember = FAMILY_MEMBERS.find((m) => m.id === activeMemberId) || FAMILY_MEMBERS[0];
+  const { members: FAMILY_MEMBERS, badges, activeMemberId, setActiveMember, setPreviewMode } = useHub();
+  const primaryNav = PRIMARY_NAV.map((item) => {
+    if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
+    if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
+    if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
+    return item;
+  });
+  const toolsNav = TOOLS_NAV;
+  const systemNav = SYSTEM_NAV.map((item) => {
+    if (item.id === 'notifications' && badges.notifications > 0) return { ...item, badge: badges.notifications };
+    return item;
+  });
 
   function NavLink({ item }: { item: NavItem }) {
-    const active = current === item.id || (item.id === 'wall' && current === 'home' && false);
+    const active = current === item.id;
     const Icon = item.icon;
     return (
       <button
@@ -306,66 +283,64 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
           }
           onChange(item.id);
         }}
-        className={`figma-sidebar-item ${active ? 'figma-sidebar-item-active' : ''}`}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative
+          ${active ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`}
+        style={active ? { backgroundColor: item.color } : {}}
         title={collapsed ? item.label : undefined}
       >
-        <Icon size={20} className="flex-shrink-0" />
-        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+        <Icon size={18} className="flex-shrink-0" style={active ? { color: '#fff' } : { color: item.color }} />
+        {!collapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
         {!collapsed && item.badge != null && item.badge > 0 && !active && (
-          <span className="figma-chip figma-chip-mauve">{item.badge}</span>
+          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+            style={{ backgroundColor: item.color + '18', color: item.color }}>
+            {item.badge}
+          </span>
         )}
         {collapsed && item.badge != null && item.badge > 0 && !active && (
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#8B5A7C]" />
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
         )}
       </button>
     );
   }
 
   return (
-    <aside className={`figma-sidebar ${collapsed ? 'is-collapsed' : ''}`}>
-      <div className="figma-sidebar-brand flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          {!collapsed ? (
-            <>
-              <div className="figma-sidebar-brand-title">FamilyHub</div>
-              <div className="figma-sidebar-brand-sub truncate">{householdName}</div>
-            </>
-          ) : (
-            <div className="figma-sidebar-avatar mx-auto">FH</div>
-          )}
+    <aside
+      className="flex h-full flex-col flex-shrink-0 overflow-hidden border-r border-black/[0.06] bg-white transition-all duration-300"
+      style={{ width: collapsed ? '64px' : '240px' }}
+    >
+      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-black/[0.06]">
+        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+          <Home size={16} className="text-white" />
         </div>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="text-[#9CA3AF] hover:text-[#111827] transition-colors flex-shrink-0 p-1"
-          aria-label="Toggle sidebar"
-        >
-          <Menu size={18} />
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="font-semibold text-stone-900 text-sm leading-tight">FamilyHub</div>
+            <div className="text-xs text-stone-400 leading-tight">Household Command</div>
+          </div>
+        )}
+        <button type="button" onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0" aria-label="Toggle sidebar">
+          <Menu size={16} />
         </button>
       </div>
 
-      <nav className="figma-sidebar-nav">
-        {sections.map((section) => (
-          <div key={section.label} className="figma-sidebar-section">
-            {!collapsed && <div className="figma-sidebar-section-label">{section.label}</div>}
-            {section.items.map((item) => (
-              <NavLink key={item.id} item={item} />
-            ))}
-          </div>
-        ))}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        <div>
+          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Primary</div>}
+          <div className="space-y-0.5">{primaryNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
+        </div>
+        <div>
+          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Household Tools</div>}
+          <div className="space-y-0.5">{toolsNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
+        </div>
+        <div>
+          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">System</div>}
+          <div className="space-y-0.5">{systemNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
+        </div>
       </nav>
 
       {!collapsed && (
-        <div className="figma-sidebar-footer">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="figma-sidebar-avatar">
-              {(activeMember?.name || 'F').slice(0, 1)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-[#111827] truncate">{activeMember?.name || 'Family'}</p>
-              <p className="text-xs text-[#9CA3AF]">Using this device</p>
-            </div>
-          </div>
+        <div className="px-4 py-4 border-t border-black/[0.06]">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">Family</div>
           <div className="flex flex-wrap gap-1.5">
             {FAMILY_MEMBERS.map((m) => {
               const active = m.id === activeMemberId;
@@ -375,7 +350,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
                   type="button"
                   title={`Switch to ${m.name}`}
                   onClick={() => setActiveMember(m.id)}
-                  className={`rounded-full transition-all ${active ? 'ring-2 ring-offset-1 ring-[#8B5A7C]' : 'opacity-80 hover:opacity-100'}`}
+                  className={`rounded-full transition-all ${active ? 'ring-2 ring-offset-1 ring-indigo-500' : 'opacity-80 hover:opacity-100'}`}
                 >
                   <MemberDot name={m.name} color={m.color} bg={m.bg} size="sm" />
                 </button>
@@ -468,10 +443,33 @@ function Clock() {
   return (
     <div>
       <div className="flex items-end gap-2 leading-none">
-        <span className="figma-home-clock">{h}:{m}</span>
-        <span className="figma-home-clock-ampm">{ampm}</span>
+        <span className="text-6xl lg:text-7xl font-light text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', serif" }}>
+          {h}:{m}
+        </span>
+        <span className="text-xl font-light text-stone-500 mb-2" style={{ fontFamily: "'Fraunces', serif" }}>{ampm}</span>
       </div>
-      <div className="text-[var(--text-muted)] text-sm mt-2">{day}, {date}</div>
+      <div className="text-stone-500 text-sm mt-1">{day}, {date}</div>
+    </div>
+  );
+}
+
+function WeatherStrip() {
+  return (
+    <div className="flex items-center gap-5 flex-wrap">
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+          <Cloud size={18} className="text-amber-600" />
+        </div>
+        <div>
+          <div className="font-semibold text-stone-900 text-lg leading-none">74°F</div>
+          <div className="text-xs text-stone-500">Partly cloudy</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-stone-500">
+        <span className="flex items-center gap-1"><Droplets size={12} className="text-sky-400" /> 55%</span>
+        <span className="flex items-center gap-1"><Wind size={12} className="text-stone-400" /> 8 mph</span>
+        <span className="flex items-center gap-1"><span className="text-stone-400">H</span> 79° <span className="text-stone-400 ml-1">L</span> 62°</span>
+      </div>
     </div>
   );
 }
@@ -517,39 +515,16 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   const petAlerts = pets.filter(p => p.fleaStatus === 'dueToday' || p.fleaStatus === 'overdue' || p.fleaStatus === 'dueSoon');
   const upcomingEvents = EVENTS.filter(e => e.dateIso >= todayIso).slice(0, 4);
   const unreadMessages = MESSAGES.filter(m => !m.read);
-  const activeName = FAMILY_MEMBERS.find(m => m.id === activeMemberId)?.name;
 
   return (
-    <div className="figma-page space-y-6">
-      <div className="figma-page-header">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] mb-2">Family Hub</p>
-          <h1 className="figma-page-title">Home</h1>
-          <p className="figma-page-subtitle">Household command center for today</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="figma-chip figma-chip-blue">{todayChores.length} chores today</span>
-          <span className="figma-chip figma-chip-amber">{todayEvents.length} events today</span>
-          {petAlerts.length > 0 && (
-            <span className="figma-chip figma-chip-rose">{petAlerts.length} pet med alerts</span>
-          )}
-          {activeName && (
-            <span className="figma-chip figma-chip-mauve">Signed in as {activeName}</span>
-          )}
-        </div>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <Clock />
+        <WeatherStrip />
       </div>
 
-      <Card className="p-6 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <Clock />
-          <div className="text-sm text-[var(--text-muted)] max-w-xs sm:text-right">
-            Soft mauve dashboard for planning, shopping, pantry, and chores — live household data.
-          </div>
-        </div>
-      </Card>
-
       <div>
-        <div className="figma-sidebar-section-label mb-3">Who's checking in?</div>
+        <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-3">Who's checking in?</div>
         <div className="flex gap-3 flex-wrap">
           {FAMILY_MEMBERS.map(m => {
             const active = m.id === activeMemberId;
@@ -558,10 +533,13 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
                 key={m.id}
                 type="button"
                 onClick={() => setActiveMember(m.id)}
-                className={`figma-checkin ${active ? 'is-active' : ''}`}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border transition-all duration-150 hover:shadow-md active:scale-95 ${
+                  active ? 'ring-2 ring-offset-1 ring-indigo-500' : ''
+                }`}
+                style={{ borderColor: m.color + '30', backgroundColor: m.bg }}
               >
-                <MemberDot name={m.name} color="#8B5A7C" bg="#F5E6F1" size="sm" />
-                <span>{m.name}</span>
+                <MemberDot name={m.name} color={m.color} bg="transparent" size="sm" />
+                <span className="font-medium text-sm" style={{ color: m.color }}>{m.name}</span>
               </button>
             );
           })}
@@ -602,23 +580,33 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
         </Card>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <button type="button" onClick={() => onQuickAdd('shopping')} className="figma-button-primary justify-start px-5 py-4 rounded-[22px]">
-          <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => onQuickAdd('shopping')}
+          className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
+          style={{ backgroundColor: '#10B981' }}
+        >
+          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
             <Plus size={18} />
           </div>
           <div className="text-left">
-            <div>Add to Shopping</div>
-            <div className="text-xs text-white/75 font-normal">{unchecked.length} items in list</div>
+            <div className="font-semibold">Add to Shopping</div>
+            <div className="text-xs text-white/70">{unchecked.length} items in list</div>
           </div>
         </button>
-        <button type="button" onClick={() => onQuickAdd('pantry')} className="figma-button-secondary justify-start px-5 py-4 rounded-[22px]">
-          <div className="figma-icon-tile !w-9 !h-9">
+        <button
+          type="button"
+          onClick={() => onQuickAdd('pantry')}
+          className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
+          style={{ backgroundColor: '#6D9C0E' }}
+        >
+          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
             <Plus size={18} />
           </div>
           <div className="text-left">
             <div className="font-semibold">Add to Inventory</div>
-            <div className="text-xs text-[var(--text-muted)]">{alerts.length} items need attention</div>
+            <div className="text-xs text-white/70">{alerts.length} items need attention</div>
           </div>
         </button>
       </div>
@@ -829,32 +817,33 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-[var(--app-bg)]">
-      <div className="px-8 pt-8 pb-5 border-b border-[var(--border-soft)] bg-white/70 backdrop-blur-sm">
-        <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+    <div className="h-full flex flex-col">
+      <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="figma-page-title">Shopping</h1>
-            <p className="figma-page-subtitle">{unchecked.filter(i=>!i.checked).length} items remaining on the household list</p>
+            <h1 className="text-xl font-semibold text-stone-900">Shopping</h1>
+            <p className="text-sm text-stone-500 mt-0.5">{unchecked.filter(i=>!i.checked).length} items remaining</p>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="figma-button-secondary">
-              <ScanLine size={16} />
+            <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
+              <ScanLine size={15} />
               <span className="hidden sm:inline">Scan</span>
             </button>
-            <button type="button" className="figma-button-secondary">
-              <Users size={16} />
+            <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
+              <Users size={15} />
               <span className="hidden sm:inline">Share</span>
             </button>
           </div>
         </div>
 
-        <div className="figma-segmented">
+        <div className="flex gap-1 bg-stone-100 p-1 rounded-xl w-fit">
           {(['current','saved','shared'] as const).map(t => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={tab === t ? 'is-active' : ''}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all
+                ${tab === t ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
             >
               {t === 'current' ? 'Current List' : t === 'saved' ? 'Saved Lists' : 'Shared List'}
             </button>
@@ -862,34 +851,35 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-6">
         {tab === 'current' && (
-          <div className="max-w-3xl space-y-5">
-            <form onSubmit={handleAdd} className="flex flex-wrap gap-2">
+          <div className="max-w-2xl">
+            <form onSubmit={handleAdd} className="flex gap-2 mb-5">
               <input
                 value={newItem}
                 onChange={e => setNewItem(e.target.value)}
                 placeholder="Add item…"
-                className="flex-1 min-w-[180px] px-4 py-3.5 bg-white border border-[var(--border-input)] rounded-[18px] text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-mauve)]"
+                className="flex-1 px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
               <input
                 value={newQty}
                 onChange={e => setNewQty(e.target.value)}
                 placeholder="Qty"
-                className="w-28 px-3 py-3.5 bg-white border border-[var(--border-input)] rounded-[18px] text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-mauve)]"
+                className="w-24 px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
-              <button type="submit" className="figma-button-primary">
-                <Plus size={16} /> Add item
+              <button type="submit" className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center gap-1">
+                <Plus size={16} /> Add
               </button>
             </form>
 
-            <div className="flex gap-2 flex-wrap">
-              <div className="figma-search flex-1 min-w-[200px]">
-                <Search size={18} />
+            <div className="flex gap-2 mb-4">
+              <div className="flex-1 relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search items…"
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
               <div className="relative">
@@ -912,10 +902,10 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
                 const member = FAMILY_MEMBERS.find(m => m.name === item.addedBy);
                 return (
                   <div key={item.id}
-                    className="figma-list-row group">
+                    className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-stone-100 hover:border-stone-200 group transition-all">
                     <button
                       onClick={() => onToggle(item.id)}
-                      className="w-5 h-5 rounded-full border-2 border-[#D1D5DB] flex items-center justify-center flex-shrink-0 hover:border-[var(--accent-mauve)] transition-colors"
+                      className="w-5 h-5 rounded-full border-2 border-stone-300 flex items-center justify-center flex-shrink-0 hover:border-emerald-500 transition-colors"
                     />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-stone-800">{item.name}</span>
@@ -1038,6 +1028,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
   const [itemName, setItemName] = useState('');
   const [itemQty, setItemQty] = useState('1');
   const [itemPlace, setItemPlace] = useState(storagePlaces[0]?.name || 'Pantry');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filtered = items
     .filter(i => filter === 'all' || i.status === filter || (filter === 'good' && (i.status === 'good' || i.status === 'ok')))
@@ -1055,39 +1046,40 @@ function PantryView({ items, onUpdateStock, onAdd }: {
   ] as const;
 
   return (
-    <div className="h-full flex flex-col bg-[var(--app-bg)]">
-      <div className="px-8 pt-8 pb-5 border-b border-[var(--border-soft)] bg-white/70 backdrop-blur-sm">
-        <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+    <div className="h-full flex flex-col">
+      <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="figma-page-title">Pantry & Inventory</h1>
-            <p className="figma-page-subtitle">
-              {items.length} items · {storagePlaces.length} storage places
+            <h1 className="text-xl font-semibold text-stone-900">Pantry & Inventory</h1>
+            <p className="text-sm text-stone-500 mt-0.5">
+              {items.length} items · {outCount + lowCount} need attention
             </p>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setShowAddPlace((v) => !v)} className="figma-button-secondary">
-              <Plus size={16} />
+            <button type="button" onClick={() => setShowAddPlace((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
+              <Plus size={15} />
               <span className="hidden sm:inline">Add place</span>
             </button>
-            <button type="button" onClick={() => setShowAddItem((v) => !v)} className="figma-button-primary">
-              <Plus size={16} />
+            <button type="button" onClick={() => setShowAddItem((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors" style={{ backgroundColor: '#6D9C0E' }}>
+              <Plus size={15} />
               <span className="hidden sm:inline">Add Item</span>
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Items</div><div className="text-2xl font-semibold">{items.length}</div></div>
-          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Places</div><div className="text-2xl font-semibold">{storagePlaces.length}</div></div>
-          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Low</div><div className="text-2xl font-semibold text-[var(--alert-warm-text)]">{lowCount}</div></div>
-          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Out</div><div className="text-2xl font-semibold text-[#9D174D]">{outCount}</div></div>
-        </div>
-        {(outCount + lowCount) > 0 && (
-          <div className="figma-alert-warm mb-5 flex items-start gap-3">
-            <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
-            <div>
-              <div className="font-semibold text-[var(--alert-warm-text)]">Low stock alert</div>
-              <p className="text-sm text-[var(--text-soft)] mt-0.5">{outCount + lowCount} items need attention in pantry inventory</p>
-            </div>
+        {(outCount > 0 || lowCount > 0) && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {outCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs font-medium text-red-600">{outCount} out of stock</span>
+              </div>
+            )}
+            {lowCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="text-xs font-medium text-amber-600">{lowCount} running low</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -1108,7 +1100,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
               placeholder="New storage place (e.g. Garage shelf, Basement bin)"
               className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
             />
-            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-[var(--accent-mauve)]">
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
               Save place
             </button>
           </form>
@@ -1147,7 +1139,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                 <option key={p.id} value={p.name}>{p.name}</option>
               ))}
             </select>
-            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-[var(--accent-mauve)]">
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
               Save item
             </button>
           </form>
@@ -1160,7 +1152,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
               type="button"
               onClick={() => setPlaceFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                placeFilter === 'all' ? 'bg-[var(--accent-mauve)] text-white' : 'bg-stone-100 text-stone-600'
+                placeFilter === 'all' ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
               }`}
             >
               All places
@@ -1171,7 +1163,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                 type="button"
                 onClick={() => setPlaceFilter(p.name)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  placeFilter === p.name ? 'bg-[var(--accent-mauve)] text-white' : 'bg-stone-100 text-stone-600'
+                  placeFilter === p.name ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
                 }`}
               >
                 {p.name}
@@ -1200,57 +1192,95 @@ function PantryView({ items, onUpdateStock, onAdd }: {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search inventory…"
-              className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:border-[var(--accent-mauve)] focus:bg-white"
+              placeholder="Search pantry…"
+              className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:bg-white"
             />
+          </div>
+          <div className="flex gap-1 bg-stone-100 p-1 rounded-xl">
+            <button type="button" onClick={() => setViewMode('grid')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${viewMode === 'grid' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>Grid</button>
+            <button type="button" onClick={() => setViewMode('list')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${viewMode === 'list' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>List</button>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl space-y-1.5">
-          {filtered.map(item => {
-            return (
-              <div key={item.id}
-                className="figma-list-row group">
-                <div className={`figma-icon-tile !w-14 !h-14 ${item.status === 'out' || item.status === 'low' ? 'is-alert' : ''}`}>
-                  <Package size={22} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-stone-900 text-sm">{item.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500">{item.place}</span>
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filtered.map((item) => {
+              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
+              return (
+                <div key={item.id} className="bg-white rounded-2xl border border-stone-100 p-4 hover:border-stone-200 hover:shadow-sm transition-all group">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: catColor + '18' }}>
+                      <Package size={14} style={{ color: catColor }} />
+                    </div>
+                    <StatusChip status={item.status} />
                   </div>
-                  <div className="mt-1.5 flex items-center gap-3">
-                    <StockBar qty={item.qty} max={item.max} status={item.status} />
-                    <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
+                  <div className="font-medium text-stone-900 text-sm leading-tight mb-1">{item.name}</div>
+                  <div className="text-xs text-stone-400 mb-1">{item.category}</div>
+                  <div className="text-xs text-stone-500 mb-3">{item.place}</div>
+                  <StockBar qty={item.qty} max={item.max} status={item.status} />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-stone-500">{item.qty} / {item.max} {item.unit}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStock(item.id, item.qty + 1)}
+                    className="w-full mt-3 text-xs py-1.5 rounded-lg font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ backgroundColor: catColor }}
+                  >
+                    + Add Stock
+                  </button>
                 </div>
-                <select
-                  value={item.place}
-                  onChange={(e) => setPantryItemPlace(item.id, e.target.value)}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 text-stone-600 max-w-[140px]"
-                  title="Move to storage place"
-                >
-                  {storagePlaces.map((p) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                  {!storagePlaces.some((p) => p.name === item.place) && (
-                    <option value={item.place}>{item.place}</option>
-                  )}
-                </select>
-                <StatusChip status={item.status} />
-                <button
-                  onClick={() => onUpdateStock(item.id, item.qty + 1)}
-                  className="figma-button-primary !text-xs !px-3 !py-1.5 !rounded-lg flex-shrink-0"
-                >
-                  + Stock
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
+              );
+            })}
+          </div>
+        ) : (
+          <div className="max-w-3xl space-y-1.5">
+            {filtered.map((item) => {
+              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
+              return (
+                <div key={item.id} className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
+                    <Package size={14} style={{ color: catColor }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-stone-900 text-sm">{item.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500">{item.place}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <StockBar qty={item.qty} max={item.max} status={item.status} />
+                      <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
+                    </div>
+                  </div>
+                  <select
+                    value={item.place}
+                    onChange={(e) => setPantryItemPlace(item.id, e.target.value)}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 text-stone-600 max-w-[140px]"
+                    title="Move to storage place"
+                  >
+                    {storagePlaces.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                    {!storagePlaces.some((p) => p.name === item.place) && (
+                      <option value={item.place}>{item.place}</option>
+                    )}
+                  </select>
+                  <StatusChip status={item.status} />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStock(item.id, item.qty + 1)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
+                    style={{ backgroundColor: catColor }}
+                  >
+                    + Stock
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Package size={40} className="text-stone-200 mb-3" />
@@ -1274,12 +1304,12 @@ function MessagesView() {
   return (
     <div className="h-full flex">
       <div className="w-72 border-r border-stone-100 bg-white flex flex-col flex-shrink-0">
-        <div className="px-5 pt-6 pb-4 border-b border-[var(--border-soft)]">
-          <h2 className="figma-page-title !text-2xl">Messages</h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Family board · {unread} unread</p>
+        <div className="px-4 pt-5 pb-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Messages</h2>
+          <p className="text-xs text-stone-500 mt-1">Family board · {unread} unread</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <div className="w-full px-4 py-3.5 flex items-center gap-3 bg-[var(--accent-mauve-soft)] border-b border-[var(--border-soft)]">
+          <div className="w-full px-4 py-3.5 flex items-center gap-3 bg-indigo-50 border-b border-stone-50">
             <div className="flex -space-x-1.5 flex-shrink-0">
               {FAMILY_MEMBERS.slice(0, 2).map(m => <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />)}
             </div>
@@ -2751,7 +2781,7 @@ export default function App() {
   };
 
   const shell = (
-    <div className="figma-app-shell">
+    <div className="flex h-full min-h-0 overflow-hidden bg-[#F8F6F2]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <Sidebar
         current={view}
         onChange={setView}
