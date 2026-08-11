@@ -19,9 +19,10 @@ import {
   addPlannerEvent,
   addPreparednessNote,
   addShoppingItem as bridgeAddShopping,
-  addVaultPassword,
+  addStoragePlace as bridgeAddStoragePlace,
   addVaultSubscription,
   deleteShoppingItem as bridgeDeleteShopping,
+  deleteVaultSubscription,
   dismissNotification as bridgeDismissNotification,
   logPetFleaDose,
   mapHubChores,
@@ -32,15 +33,16 @@ import {
   mapHubMessages,
   mapHubNotifications,
   mapHubPantry,
-  mapHubPasswords,
   mapHubPets,
   mapHubShopping,
+  mapHubStoragePlaces,
   mapHubSubscriptions,
   markNotificationRead as bridgeMarkNotificationRead,
   postFamilyMessage,
   readHouseholdVault,
   sessionMemberId,
   setActiveMember as bridgeSetActiveMember,
+  setPantryItemPlace as bridgeSetPantryItemPlace,
   toggleChoreDone as bridgeToggleChore,
   toggleShoppingPurchased,
   updateHouseholdName,
@@ -48,6 +50,7 @@ import {
   updatePantryQuantity,
   updatePet as bridgeUpdatePet,
   updatePreparednessNote,
+  updateVaultSubscription,
   writeHouseholdVault,
   type HubChore,
   type HubDoc,
@@ -57,9 +60,9 @@ import {
   type HubMessage,
   type HubNotification,
   type HubPantryItem,
-  type HubPassword,
   type HubPet,
   type HubShoppingItem,
+  type HubStoragePlace,
   type HubSubscription,
 } from './bridge';
 
@@ -78,13 +81,13 @@ type HubContextValue = {
   members: HubMember[];
   shoppingItems: HubShoppingItem[];
   pantryItems: HubPantryItem[];
+  storagePlaces: HubStoragePlace[];
   chores: HubChore[];
   events: HubEvent[];
   messages: HubMessage[];
   pets: HubPet[];
   emergencyItems: HubEmergencyItem[];
   subscriptions: HubSubscription[];
-  passwords: HubPassword[];
   notifications: HubNotification[];
   docs: HubDoc[];
   badges: { messages: number; shopping: number; pantry: number; notifications: number };
@@ -93,11 +96,14 @@ type HubContextValue = {
   deleteShoppingItem: (id: string) => void;
   addShoppingItem: (name: string, qty: string) => void;
   updatePantryStock: (id: string, qty: number) => void;
-  addPantryItem: (name: string, qty: string) => void;
+  addPantryItem: (name: string, qty: string, place?: string) => void;
+  addStoragePlace: (name: string) => void;
+  setPantryItemPlace: (itemId: string, placeName: string) => void;
   toggleChore: (id: string) => void;
   postMessage: (text: string) => void;
-  addSubscription: (name: string, amount: number) => void;
-  addPassword: (label: string, username: string, hint: string) => void;
+  addSubscription: (name: string, password: string, payerMemberId: string) => void;
+  updateSubscription: (id: string, patch: { name?: string; password?: string; payerMemberId?: string }) => void;
+  removeSubscription: (id: string) => void;
   addChore: (title: string, memberId?: string) => void;
   addEvent: (input: { title: string; date?: string; time?: string; memberId?: string }) => void;
   setActiveMember: (memberId: string) => void;
@@ -226,7 +232,7 @@ const PRIMARY_NAV: NavItem[] = [
 
 const TOOLS_NAV: NavItem[] = [
   { id: 'pets',          label: 'Pets',                    icon: PawPrint,      color: '#F97316' },
-  { id: 'subscriptions', label: 'Subscriptions & Passwords', icon: CreditCard,  color: '#8B5CF6' },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard,  color: '#8B5CF6' },
   { id: 'planner',       label: 'Planner',                 icon: CalendarCheck, color: '#3B82F6' },
   { id: 'family',        label: 'Family Members',          icon: Users,         color: '#14B8A6' },
   { id: 'notifications', label: 'Notifications',           icon: Bell,          color: '#EC4899' },
@@ -1005,15 +1011,22 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
 function PantryView({ items, onUpdateStock, onAdd }: {
   items: HubPantryItem[];
   onUpdateStock: (id: string, qty: number) => void;
-  onAdd: (name: string, qty: string) => void;
+  onAdd: (name: string, qty: string, place?: string) => void;
 }) {
+  const { storagePlaces, addStoragePlace, setPantryItemPlace } = useHub();
   const [filter, setFilter] = useState<'all'|'out'|'low'|'good'>('all');
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'grid'|'list'>('grid');
-  const [scanOpen, setScanOpen] = useState(false);
+  const [placeFilter, setPlaceFilter] = useState<string>('all');
+  const [showAddPlace, setShowAddPlace] = useState(false);
+  const [placeDraft, setPlaceDraft] = useState('');
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [itemName, setItemName] = useState('');
+  const [itemQty, setItemQty] = useState('1');
+  const [itemPlace, setItemPlace] = useState(storagePlaces[0]?.name || 'Pantry');
 
   const filtered = items
     .filter(i => filter === 'all' || i.status === filter || (filter === 'good' && (i.status === 'good' || i.status === 'ok')))
+    .filter(i => placeFilter === 'all' || i.place.toLowerCase() === placeFilter.toLowerCase())
     .filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   const outCount = items.filter(i => i.status === 'out').length;
@@ -1028,23 +1041,26 @@ function PantryView({ items, onUpdateStock, onAdd }: {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-semibold text-stone-900">Pantry & Inventory</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{items.length} items · {outCount + lowCount} need attention</p>
+            <p className="text-sm text-stone-500 mt-0.5">
+              {items.length} items · {storagePlaces.length} storage places
+            </p>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setScanOpen(true)}
+              type="button"
+              onClick={() => setShowAddPlace((v) => !v)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
             >
-              <ScanLine size={15} />
-              <span className="hidden sm:inline">Scan Item</span>
+              <Plus size={15} />
+              <span className="hidden sm:inline">Add place</span>
             </button>
             <button
-              onClick={() => onAdd('New item', '1')}
+              type="button"
+              onClick={() => setShowAddItem((v) => !v)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors"
               style={{ backgroundColor: '#6D9C0E' }}
             >
@@ -1054,25 +1070,96 @@ function PantryView({ items, onUpdateStock, onAdd }: {
           </div>
         </div>
 
-        {/* Alerts summary */}
-        {(outCount > 0 || lowCount > 0) && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {outCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-xs font-medium text-red-600">{outCount} out of stock</span>
-              </div>
-            )}
-            {lowCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <span className="text-xs font-medium text-amber-600">{lowCount} running low</span>
-              </div>
-            )}
-          </div>
+        {showAddPlace && (
+          <form
+            className="flex gap-2 mb-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!placeDraft.trim()) return;
+              addStoragePlace(placeDraft);
+              setPlaceDraft('');
+              setShowAddPlace(false);
+            }}
+          >
+            <input
+              value={placeDraft}
+              onChange={(e) => setPlaceDraft(e.target.value)}
+              placeholder="New storage place (e.g. Garage shelf, Basement bin)"
+              className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            />
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
+              Save place
+            </button>
+          </form>
         )}
 
-        {/* Filters + search + view toggle */}
+        {showAddItem && (
+          <form
+            className="flex flex-wrap gap-2 mb-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!itemName.trim()) return;
+              onAdd(itemName, itemQty || '1', itemPlace);
+              setItemName('');
+              setItemQty('1');
+              setShowAddItem(false);
+            }}
+          >
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Item name"
+              className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            />
+            <input
+              value={itemQty}
+              onChange={(e) => setItemQty(e.target.value)}
+              placeholder="Qty"
+              className="w-20 px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            />
+            <select
+              value={itemPlace}
+              onChange={(e) => setItemPlace(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            >
+              {storagePlaces.map((p) => (
+                <option key={p.id} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
+              Save item
+            </button>
+          </form>
+        )}
+
+        <div className="mb-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Storage places</div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setPlaceFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                placeFilter === 'all' ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
+              }`}
+            >
+              All places
+            </button>
+            {storagePlaces.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPlaceFilter(p.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  placeFilter === p.name ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
+                }`}
+              >
+                {p.name}
+                <span className="ml-1 opacity-70">{p.itemCount}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-3 items-center flex-wrap">
           <div className="flex gap-1 bg-stone-100 p-1 rounded-xl">
             {FILTER_OPTIONS.map(f => (
@@ -1083,9 +1170,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                   ${filter === f.key ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
               >
                 {f.label}
-                <span className={`text-xs px-1 rounded ${filter === f.key ? 'text-stone-400' : 'text-stone-400'}`}>
-                  {f.count}
-                </span>
+                <span className="text-xs px-1 rounded text-stone-400">{f.count}</span>
               </button>
             ))}
           </div>
@@ -1094,121 +1179,67 @@ function PantryView({ items, onUpdateStock, onAdd }: {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search pantry…"
+              placeholder="Search inventory…"
               className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:bg-white"
             />
-          </div>
-          <div className="flex gap-1 bg-stone-100 p-1 rounded-xl ml-auto">
-            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm' : ''}`}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill={viewMode==='grid'?'#1C1917':'#94a3b8'}/><rect x="9" y="1" width="6" height="6" rx="1.5" fill={viewMode==='grid'?'#1C1917':'#94a3b8'}/><rect x="1" y="9" width="6" height="6" rx="1.5" fill={viewMode==='grid'?'#1C1917':'#94a3b8'}/><rect x="9" y="9" width="6" height="6" rx="1.5" fill={viewMode==='grid'?'#1C1917':'#94a3b8'}/></svg>
-            </button>
-            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm' : ''}`}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" rx="1" fill={viewMode==='list'?'#1C1917':'#94a3b8'}/><rect x="1" y="7" width="14" height="2" rx="1" fill={viewMode==='list'?'#1C1917':'#94a3b8'}/><rect x="1" y="11" width="14" height="2" rx="1" fill={viewMode==='list'?'#1C1917':'#94a3b8'}/></svg>
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Items */}
       <div className="flex-1 overflow-y-auto p-6">
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filtered.map(item => {
-              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
-              return (
-                <div key={item.id}
-                  className="bg-white rounded-2xl border border-stone-100 p-4 hover:border-stone-200 hover:shadow-sm transition-all group">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: catColor + '18' }}>
-                      <Package size={14} style={{ color: catColor }} />
-                    </div>
-                    <StatusChip status={item.status} />
+        <div className="max-w-3xl space-y-1.5">
+          {filtered.map(item => {
+            const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
+            return (
+              <div key={item.id}
+                className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
+                  <Package size={14} style={{ color: catColor }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-stone-900 text-sm">{item.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500">{item.place}</span>
                   </div>
-                  <div className="font-medium text-stone-900 text-sm leading-tight mb-1">{item.name}</div>
-                  <div className="text-xs text-stone-400 mb-3">{item.category}</div>
-                  <StockBar qty={item.qty} max={item.max} status={item.status} />
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-stone-500">{item.qty} / {item.max} {item.unit}</span>
-                    {item.expiry && <span className="text-xs text-stone-400">Exp {item.expiry}</span>}
-                  </div>
-                  <div className="flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => onUpdateStock(item.id, item.qty + 1)}
-                      className="flex-1 text-xs py-1.5 rounded-lg font-medium text-white transition-colors"
-                      style={{ backgroundColor: catColor }}
-                    >
-                      + Add Stock
-                    </button>
+                  <div className="mt-1.5 flex items-center gap-3">
+                    <StockBar qty={item.qty} max={item.max} status={item.status} />
+                    <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="max-w-3xl space-y-1.5">
-            {filtered.map(item => {
-              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
-              return (
-                <div key={item.id}
-                  className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
-                    <Package size={14} style={{ color: catColor }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-stone-900 text-sm">{item.name}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded-md" style={{ backgroundColor: catColor + '18', color: catColor }}>{item.category}</span>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-3">
-                      <StockBar qty={item.qty} max={item.max} status={item.status} />
-                      <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
-                    </div>
-                  </div>
-                  <StatusChip status={item.status} />
-                  <button
-                    onClick={() => onUpdateStock(item.id, item.qty + 1)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
-                    style={{ backgroundColor: catColor }}
-                  >
-                    + Stock
-                  </button>
-                  {item.expiry && <span className="text-xs text-stone-400 hidden lg:block flex-shrink-0">Exp {item.expiry}</span>}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                <select
+                  value={item.place}
+                  onChange={(e) => setPantryItemPlace(item.id, e.target.value)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 text-stone-600 max-w-[140px]"
+                  title="Move to storage place"
+                >
+                  {storagePlaces.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                  {!storagePlaces.some((p) => p.name === item.place) && (
+                    <option value={item.place}>{item.place}</option>
+                  )}
+                </select>
+                <StatusChip status={item.status} />
+                <button
+                  onClick={() => onUpdateStock(item.id, item.qty + 1)}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
+                  style={{ backgroundColor: catColor }}
+                >
+                  + Stock
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Package size={40} className="text-stone-200 mb-3" />
-            <div className="text-stone-500 font-medium">No items found</div>
-            <div className="text-sm text-stone-400 mt-1">Try adjusting your filters or search</div>
+            <div className="text-stone-500 font-medium">No items in this place</div>
+            <div className="text-sm text-stone-400 mt-1">Add an item or choose another storage place</div>
           </div>
         )}
       </div>
-
-      {/* Scan modal */}
-      {scanOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setScanOpen(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-stone-900">Scan Item</h3>
-              <button onClick={() => setScanOpen(false)} className="text-stone-400 hover:text-stone-700"><X size={20} /></button>
-            </div>
-            <div className="bg-stone-100 rounded-xl h-48 flex flex-col items-center justify-center gap-3 mb-4">
-              <ScanLine size={40} className="text-stone-400" />
-              <span className="text-sm text-stone-500">Point camera at barcode</span>
-              <span className="text-xs text-stone-400">Powered by OpenFoodFacts</span>
-            </div>
-            <div className="text-center text-xs text-stone-400">Or enter barcode manually</div>
-            <input placeholder="e.g. 012345678901" className="w-full mt-2 px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-lime-500" />
-            <button className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-medium" style={{ backgroundColor: '#6D9C0E' }}>
-              Look Up
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1894,133 +1925,122 @@ function PetsView() {
   );
 }
 
-// ── Subscriptions & Passwords Page ────────────────────────────────────────────
+// ── Subscriptions Page ────────────────────────────────────────────────────────
 
 function SubscriptionsView() {
   const {
     subscriptions: SUBSCRIPTIONS,
-    passwords: PASSWORDS,
+    members,
     addSubscription,
-    addPassword,
+    updateSubscription,
+    removeSubscription,
   } = useHub();
 
-  const [tab, setTab] = useState<'billing' | 'passwords'>('billing');
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [draftName, setDraftName] = useState('');
-  const [draftAmount, setDraftAmount] = useState('');
-  const [draftUser, setDraftUser] = useState('');
-  const [draftHint, setDraftHint] = useState('');
-  const monthly = SUBSCRIPTIONS.filter(s => s.cycle === 'Monthly');
-  const monthlyTotal = monthly.reduce((sum, s) => sum + s.amount, 0);
+  const [draftPassword, setDraftPassword] = useState('');
+  const [draftPayer, setDraftPayer] = useState(members[0]?.id || '');
 
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-semibold text-stone-900">Subscriptions & Passwords</h1>
+        <h1 className="text-xl font-semibold text-stone-900">Subscriptions</h1>
       </div>
-      <p className="text-sm text-stone-500 mb-4">
-        {tab === 'billing'
-          ? <>Monthly total: <span className="font-semibold text-stone-800">${monthlyTotal.toFixed(2)}</span></>
-          : 'Household password vault — stored on this device only.'}
+      <p className="text-sm text-stone-500 mb-5">
+        Service name, login password, and who pays — stored on this device only.
       </p>
 
-      <div className="flex gap-1 bg-stone-100 p-1 rounded-xl w-fit mb-5">
-        {([
-          { key: 'billing', label: 'Subscriptions' },
-          { key: 'passwords', label: 'Passwords' },
-        ] as const).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all
-              ${tab === t.key ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <form
+        className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] mb-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!draftName.trim()) return;
+          addSubscription(draftName, draftPassword, draftPayer);
+          setDraftName('');
+          setDraftPassword('');
+        }}
+      >
+        <input
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          placeholder="Service (e.g. Netflix)"
+          className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+        />
+        <input
+          value={draftPassword}
+          onChange={(e) => setDraftPassword(e.target.value)}
+          placeholder="Password / PIN"
+          className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+        />
+        <select
+          value={draftPayer}
+          onChange={(e) => setDraftPayer(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+        >
+          <option value="">Who pays?</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500 hover:bg-violet-600">
+          <Plus size={15} /> Add
+        </button>
+      </form>
 
-      {tab === 'billing' ? (
-        <div className="space-y-3">
-          <form
-            className="flex flex-wrap gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!draftName.trim()) return;
-              addSubscription(draftName, Number.parseFloat(draftAmount) || 0);
-              setDraftName('');
-              setDraftAmount('');
-            }}
-          >
-            <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Service name" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-stone-200 text-sm" />
-            <input value={draftAmount} onChange={e => setDraftAmount(e.target.value)} placeholder="Amount" className="w-28 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
-            <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500 hover:bg-violet-600">
-              <Plus size={15} /> Add
-            </button>
-          </form>
-          <div className="space-y-2">
-            {SUBSCRIPTIONS.map(sub => (
-              <Card key={sub.id} className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: sub.color + '18' }}>
-                  <CreditCard size={16} style={{ color: sub.color }} />
+      <div className="space-y-2">
+        {SUBSCRIPTIONS.length === 0 && (
+          <Card className="p-6 text-sm text-stone-500">No subscriptions yet.</Card>
+        )}
+        {SUBSCRIPTIONS.map((sub) => {
+          const payer = members.find((m) => m.id === sub.payerMemberId);
+          return (
+            <Card key={sub.id} className="p-4 flex items-center gap-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: sub.color + '18' }}
+              >
+                <Key size={16} style={{ color: sub.color }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-stone-900 text-sm">{sub.name}</div>
+                <div className="text-xs text-stone-500 mt-0.5 truncate">
+                  Password: {revealed[sub.id] ? (sub.password || '—') : '••••••••'}
                 </div>
-                <div className="flex-1">
-                  <div className="font-medium text-stone-900 text-sm">{sub.name}</div>
-                  <div className="text-xs text-stone-400 mt-0.5">Due {sub.due} · {sub.cycle}</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  Paid by {sub.payerName}
                 </div>
-                <div className="font-semibold text-stone-800">${sub.amount.toFixed(2)}</div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <form
-            className="grid gap-2 sm:grid-cols-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!draftName.trim()) return;
-              addPassword(draftName, draftUser, draftHint);
-              setDraftName('');
-              setDraftUser('');
-              setDraftHint('');
-            }}
-          >
-            <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Label (e.g. Wi‑Fi)" className="px-3 py-2 rounded-xl border border-stone-200 text-sm" />
-            <input value={draftUser} onChange={e => setDraftUser(e.target.value)} placeholder="Username / value" className="px-3 py-2 rounded-xl border border-stone-200 text-sm" />
-            <div className="flex gap-2">
-              <input value={draftHint} onChange={e => setDraftHint(e.target.value)} placeholder="Hint (preferred)" className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
-              <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500">
-                <Plus size={15} />
+              </div>
+              <select
+                value={sub.payerMemberId}
+                onChange={(e) => updateSubscription(sub.id, { payerMemberId: e.target.value })}
+                className="text-xs px-2 py-1.5 rounded-lg border border-stone-200"
+                title="Person responsible for paying"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              {payer && <MemberDot name={payer.name} color={payer.color} bg={payer.bg} size="sm" />}
+              <button
+                type="button"
+                onClick={() => setRevealed((prev) => ({ ...prev, [sub.id]: !prev[sub.id] }))}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200"
+              >
+                {revealed[sub.id] ? 'Hide' : 'Reveal'}
               </button>
-            </div>
-          </form>
-          <div className="space-y-2">
-            {PASSWORDS.map(item => (
-              <Card key={item.id} className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: item.color + '18' }}>
-                  <Key size={16} style={{ color: item.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-stone-900 text-sm">{item.label}</div>
-                  <div className="text-xs text-stone-500 mt-0.5 truncate">
-                    {revealed[item.id] ? item.username : '••••••••••••'}
-                  </div>
-                  <div className="text-xs text-stone-400 mt-0.5">{item.hint}</div>
-                </div>
-                <button
-                  onClick={() => setRevealed(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
-                >
-                  {revealed[item.id] ? 'Hide' : 'Reveal'}
-                </button>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+              <button
+                type="button"
+                onClick={() => removeSubscription(sub.id)}
+                className="text-stone-300 hover:text-red-500 p-1"
+                title="Remove"
+              >
+                <Trash2 size={14} />
+              </button>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2363,16 +2383,16 @@ function SettingsView() {
             <button type="button" onClick={() => navigate('home')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left border-b border-stone-100">
               <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Home size={16} className="text-stone-600" /></div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-stone-900">Wall display</div>
-                <div className="text-xs text-stone-400 mt-0.5">Always-on Home page</div>
+                <div className="text-sm font-medium text-stone-900">Home</div>
+                <div className="text-xs text-stone-400 mt-0.5">Landing page when the app opens</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
             <button type="button" onClick={() => navigate('subscriptions')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left">
               <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Key size={16} className="text-stone-600" /></div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-stone-900">Subscriptions & passwords</div>
-                <div className="text-xs text-stone-400 mt-0.5">Manage vault</div>
+                <div className="text-sm font-medium text-stone-900">Subscriptions</div>
+                <div className="text-xs text-stone-400 mt-0.5">Password + who pays</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
@@ -2456,13 +2476,13 @@ export default function App() {
       members: mapHubMembers(data),
       shoppingItems,
       pantryItems,
+      storagePlaces: mapHubStoragePlaces(data),
       chores: mapHubChores(data),
       events: mapHubEvents(data),
       messages,
       pets: mapHubPets(data),
       emergencyItems: mapHubEmergency(data),
-      subscriptions: mapHubSubscriptions(vault),
-      passwords: mapHubPasswords(vault),
+      subscriptions: mapHubSubscriptions(vault, data),
       notifications,
       docs: mapHubDocs(data),
       badges: {
@@ -2476,17 +2496,26 @@ export default function App() {
       deleteShoppingItem: (id) => setData((prev) => bridgeDeleteShopping(prev, id)),
       addShoppingItem: (name, qty) => setData((prev) => bridgeAddShopping(prev, name, qty)),
       updatePantryStock: (id, qty) => setData((prev) => updatePantryQuantity(prev, id, qty)),
-      addPantryItem: (name, qty) => setData((prev) => bridgeAddPantry(prev, name, qty)),
+      addPantryItem: (name, qty, place) => setData((prev) => bridgeAddPantry(prev, name, qty, place)),
+      addStoragePlace: (name) => setData((prev) => bridgeAddStoragePlace(prev, name)),
+      setPantryItemPlace: (itemId, placeName) =>
+        setData((prev) => bridgeSetPantryItemPlace(prev, itemId, placeName)),
       toggleChore: (id) => setData((prev) => bridgeToggleChore(prev, id)),
       postMessage: (text) => {
         setData((prev) => postFamilyMessage(prev, text, sessionMemberId(prev)));
       },
-      addSubscription: (name, amount) => {
-        writeHouseholdVault(addVaultSubscription(readHouseholdVault(), { name, amount }));
+      addSubscription: (name, password, payerMemberId) => {
+        writeHouseholdVault(
+          addVaultSubscription(readHouseholdVault(), { name, password, payerMemberId }),
+        );
         setVaultTick((n) => n + 1);
       },
-      addPassword: (label, username, hint) => {
-        writeHouseholdVault(addVaultPassword(readHouseholdVault(), { label, username, hint }));
+      updateSubscription: (id, patch) => {
+        writeHouseholdVault(updateVaultSubscription(readHouseholdVault(), id, patch));
+        setVaultTick((n) => n + 1);
+      },
+      removeSubscription: (id) => {
+        writeHouseholdVault(deleteVaultSubscription(readHouseholdVault(), id));
         setVaultTick((n) => n + 1);
       },
       addChore: (title, memberId) => setData((prev) => addChoreTask(prev, title, memberId)),

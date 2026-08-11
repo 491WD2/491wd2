@@ -211,10 +211,12 @@ export function normalizeFamilyData(value: unknown): FamilyData {
           getSafeTimestamp(b.createdAt) - getSafeTimestamp(a.createdAt),
       )
       .slice(0, 200),
-    storageLocations: normalizeArray(
-      value.storageLocations,
-      [],
-      normalizeHouseholdStorageLocation,
+    storageLocations: mergeDefaultStoragePlaces(
+      normalizeArray(
+        value.storageLocations,
+        [],
+        normalizeHouseholdStorageLocation,
+      ),
     ),
     pets: mergeDefaultPets(normalizeArray(value.pets, [], normalizePet)),
     petMedicationEntries: normalizeArray(
@@ -692,6 +694,34 @@ function refreshStaleSeedPlannerDates(events: PlannerEvent[]): PlannerEvent[] {
     }
     return evt;
   });
+}
+
+const DEFAULT_STORAGE_PLACE_SEEDS: ReadonlyArray<{
+  id: string;
+  name: string;
+  storageArea: PantryLocation;
+}> = [
+  { id: "place-kitchen-fridge", name: "Kitchen Fridge", storageArea: "Kitchen Fridge" },
+  { id: "place-kitchen-freezer", name: "Kitchen Freezer", storageArea: "Kitchen Freezer" },
+  { id: "place-pantry", name: "Pantry", storageArea: "Pantry" },
+  { id: "place-kitchen-cabinets", name: "Kitchen Cabinets", storageArea: "Kitchen Cabinets" },
+  { id: "place-laundry-freezer", name: "Laundry Room Freezer", storageArea: "Laundry Room Freezer" },
+  { id: "place-garage", name: "Garage", storageArea: "Custom Location" },
+];
+
+/** Seed a starter catalog of inventory places when the household has none yet. */
+function mergeDefaultStoragePlaces(
+  existing: HouseholdStorageLocation[],
+): HouseholdStorageLocation[] {
+  if (existing.length > 0) return existing;
+  const now = new Date().toISOString();
+  return DEFAULT_STORAGE_PLACE_SEEDS.map((s) => ({
+    id: s.id,
+    name: s.name,
+    storageArea: s.storageArea,
+    createdAt: now,
+    updatedAt: now,
+  }));
 }
 
 /** Ensure preparedness notes exist for households that predate the FamilyHub emergency wiring. */
