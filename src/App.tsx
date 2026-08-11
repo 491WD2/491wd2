@@ -2,7 +2,7 @@ import { FamilyHubApp } from "./familyhub";
 
 /**
  * Primary shell is FamilyHub — opens on Home.
- * No Projects / Photos / Routines / kiosk shell.
+ * Visual style follows the attached Figma/code bundle (mauve admin chrome).
  * Full FamilyData model remains in src/data for persistence/bridge work.
  */
 function App() {

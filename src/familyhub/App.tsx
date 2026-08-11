@@ -5,11 +5,12 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users,
+  Users, List, Cloud, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
-  PawPrint, CalendarCheck, Bookmark, Key, FileText,
-  Monitor, Tablet,
+  PawPrint, Bookmark, Key, FileText,
+  Monitor, Tablet, Star,
 } from 'lucide-react';
+import type { Project } from '../data/familyData';
 import { useFamilyData } from '../hooks/useFamilyData';
 import {
   addChoreTask,
@@ -73,7 +74,8 @@ type PreviewMode = 'desktop' | 'app';
 type View =
   | 'home' | 'messages' | 'calendar' | 'shopping' | 'pantry'
   | 'cleaning' | 'emergency' | 'pets' | 'subscriptions'
-  | 'planner' | 'family' | 'notifications' | 'docs' | 'settings';
+  | 'family' | 'notifications' | 'docs' | 'settings'
+  | 'wall';
 
 const PREVIEW_STORAGE_KEY = '491wd-preview-mode';
 
@@ -90,7 +92,10 @@ type HubContextValue = {
   subscriptions: HubSubscription[];
   notifications: HubNotification[];
   docs: HubDoc[];
+  projects: Project[];
   badges: { messages: number; shopping: number; pantry: number; notifications: number };
+  setPreviewMode?: (mode: PreviewMode) => void;
+  previewMode?: PreviewMode;
   activeMemberId?: string;
   toggleShoppingItem: (id: string) => void;
   deleteShoppingItem: (id: string) => void;
@@ -218,7 +223,7 @@ function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: stri
   );
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Sidebar — matches https://floor-double-99844517.figma.site/ ───────────────
 
 const PRIMARY_NAV: NavItem[] = [
   { id: 'home',          label: 'Home',                icon: Home,          color: '#4F46E5' },
@@ -231,12 +236,8 @@ const PRIMARY_NAV: NavItem[] = [
 ];
 
 const TOOLS_NAV: NavItem[] = [
-  { id: 'pets',          label: 'Pets',                    icon: PawPrint,      color: '#F97316' },
-  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard,  color: '#8B5CF6' },
-  { id: 'planner',       label: 'Planner',                 icon: CalendarCheck, color: '#3B82F6' },
-  { id: 'family',        label: 'Family Members',          icon: Users,         color: '#14B8A6' },
-  { id: 'notifications', label: 'Notifications',           icon: Bell,          color: '#EC4899' },
-  { id: 'docs',          label: 'Docs & Help',             icon: FileText,      color: '#06B6D4' },
+  { id: 'pets',          label: 'Pets',           icon: PawPrint,   color: '#F97316' },
+  { id: 'subscriptions', label: 'Subscriptions',  icon: CreditCard, color: '#8B5CF6' },
 ];
 
 const SYSTEM_NAV: NavItem[] = [
@@ -246,25 +247,30 @@ const SYSTEM_NAV: NavItem[] = [
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const { members: FAMILY_MEMBERS, badges, householdName, activeMemberId, setActiveMember } = useHub();
+  const { members: FAMILY_MEMBERS, badges, activeMemberId, setActiveMember, setPreviewMode } = useHub();
   const primaryNav = PRIMARY_NAV.map((item) => {
     if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
     if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
     if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
     return item;
   });
-  const toolsNav = TOOLS_NAV.map((item) => {
-    if (item.id === 'notifications' && badges.notifications > 0) {
-      return { ...item, badge: badges.notifications };
-    }
-    return item;
-  });
+  const toolsNav = TOOLS_NAV;
+  const systemNav = SYSTEM_NAV;
+
   function NavLink({ item }: { item: NavItem }) {
     const active = current === item.id;
     const Icon = item.icon;
     return (
       <button
-        onClick={() => onChange(item.id)}
+        type="button"
+        onClick={() => {
+          if (item.id === 'wall') {
+            setPreviewMode?.('app');
+            onChange('home');
+            return;
+          }
+          onChange(item.id);
+        }}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative
           ${active ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`}
         style={active ? { backgroundColor: item.color } : {}}
@@ -272,13 +278,13 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
       >
         <Icon size={18} className="flex-shrink-0" style={active ? { color: '#fff' } : { color: item.color }} />
         {!collapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
-        {!collapsed && item.badge && !active && (
+        {!collapsed && item.badge != null && item.badge > 0 && !active && (
           <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
             style={{ backgroundColor: item.color + '18', color: item.color }}>
             {item.badge}
           </span>
         )}
-        {collapsed && item.badge && !active && (
+        {collapsed && item.badge != null && item.badge > 0 && !active && (
           <span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
         )}
       </button>
@@ -290,52 +296,41 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
       className="flex h-full flex-col flex-shrink-0 overflow-hidden border-r border-black/[0.06] bg-white transition-all duration-300"
       style={{ width: collapsed ? '64px' : '240px' }}
     >
-      {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-black/[0.06]">
         <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
           <Home size={16} className="text-white" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-semibold text-stone-900 text-sm leading-tight truncate">{householdName}</div>
+            <div className="font-semibold text-stone-900 text-sm leading-tight">FamilyHub</div>
             <div className="text-xs text-stone-400 leading-tight">Household Command</div>
           </div>
         )}
-        <button onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0">
+        <button type="button" onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0" aria-label="Toggle sidebar">
           <Menu size={16} />
         </button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         <div>
           {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Primary</div>}
-          <div className="space-y-0.5">
-            {primaryNav.map(item => <NavLink key={item.id} item={item} />)}
-          </div>
+          <div className="space-y-0.5">{primaryNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
         </div>
         <div>
           {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Household Tools</div>}
-          <div className="space-y-0.5">
-            {toolsNav.map(item => <NavLink key={item.id} item={item} />)}
-          </div>
+          <div className="space-y-0.5">{toolsNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
         </div>
         <div>
           {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">System</div>}
-          <div className="space-y-0.5">
-            {SYSTEM_NAV.map(item => <NavLink key={item.id} item={item} />)}
-          </div>
+          <div className="space-y-0.5">{systemNav.map((item) => <NavLink key={item.id} item={item} />)}</div>
         </div>
       </nav>
 
-      {/* Family avatars — tap to set who is using this device */}
       {!collapsed && (
         <div className="px-4 py-4 border-t border-black/[0.06]">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">
-            Using this device
-          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">Family</div>
           <div className="flex flex-wrap gap-1.5">
-            {FAMILY_MEMBERS.map(m => {
+            {FAMILY_MEMBERS.map((m) => {
               const active = m.id === activeMemberId;
               return (
                 <button
@@ -446,15 +441,29 @@ function Clock() {
   );
 }
 
-function todayIsoLocal(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function WeatherStrip() {
+  return (
+    <div className="flex items-center gap-5 flex-wrap">
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+          <Cloud size={18} className="text-amber-600" />
+        </div>
+        <div>
+          <div className="font-semibold text-stone-900 text-lg leading-none">74°F</div>
+          <div className="text-xs text-stone-500">Partly cloudy</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-stone-500">
+        <span className="flex items-center gap-1"><Droplets size={12} className="text-sky-400" /> 55%</span>
+        <span className="flex items-center gap-1"><Wind size={12} className="text-stone-400" /> 8 mph</span>
+        <span className="flex items-center gap-1"><span className="text-stone-400">H</span> 79° <span className="text-stone-400 ml-1">L</span> 62°</span>
+      </div>
+    </div>
+  );
 }
 
-function toIsoLocal(d: Date): string {
+function todayIsoLocal(): string {
+  const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -473,7 +482,6 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
     members: FAMILY_MEMBERS,
     messages: MESSAGES,
     events: EVENTS,
-    pets,
     activeMemberId,
     setActiveMember,
   } = useHub();
@@ -483,38 +491,16 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   const lowCount = pantryItems.filter(i => i.status === 'low').length;
   const todayIso = todayIsoLocal();
   const todayChores = chores.filter(c => c.due === 'Today');
-  const todayEvents = EVENTS.filter(e => e.dateIso === todayIso);
-  const petAlerts = pets.filter(p => p.fleaStatus === 'dueToday' || p.fleaStatus === 'overdue' || p.fleaStatus === 'dueSoon');
   const upcomingEvents = EVENTS.filter(e => e.dateIso >= todayIso).slice(0, 4);
   const unreadMessages = MESSAGES.filter(m => !m.read);
-  const activeName = FAMILY_MEMBERS.find(m => m.id === activeMemberId)?.name;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header: clock + live today summary */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <Clock />
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 font-medium">
-            {todayChores.length} chores today
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">
-            {todayEvents.length} events today
-          </span>
-          {petAlerts.length > 0 && (
-            <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 font-medium">
-              {petAlerts.length} pet med alerts
-            </span>
-          )}
-          {activeName && (
-            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-medium">
-              Signed in as {activeName}
-            </span>
-          )}
-        </div>
+        <WeatherStrip />
       </div>
 
-      {/* Family member buttons */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-3">Who's checking in?</div>
         <div className="flex gap-3 flex-wrap">
@@ -538,43 +524,9 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
         </div>
       </div>
 
-      {/* Today strip */}
-      {(todayEvents.length > 0 || petAlerts.length > 0) && (
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-2">Today</div>
-          <div className="space-y-2">
-            {todayEvents.map((evt) => (
-              <button
-                key={evt.id}
-                type="button"
-                onClick={() => onNavigate('calendar')}
-                className="w-full flex items-center gap-3 text-left"
-              >
-                <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: evt.color }} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
-                  <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
-                </div>
-              </button>
-            ))}
-            {petAlerts.map((pet) => (
-              <button
-                key={pet.id}
-                type="button"
-                onClick={() => onNavigate('pets')}
-                className="w-full flex items-center gap-3 text-left"
-              >
-                <PawPrint size={14} className="text-orange-500 flex-shrink-0" />
-                <div className="text-sm text-stone-700 truncate">{pet.name}: {pet.tasks[0]}</div>
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Quick Add */}
       <div className="grid grid-cols-2 gap-3">
         <button
+          type="button"
           onClick={() => onQuickAdd('shopping')}
           className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
           style={{ backgroundColor: '#10B981' }}
@@ -588,6 +540,7 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
           </div>
         </button>
         <button
+          type="button"
           onClick={() => onQuickAdd('pantry')}
           className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
           style={{ backgroundColor: '#6D9C0E' }}
@@ -809,7 +762,6 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -817,22 +769,22 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
             <p className="text-sm text-stone-500 mt-0.5">{unchecked.filter(i=>!i.checked).length} items remaining</p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
+            <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
               <ScanLine size={15} />
               <span className="hidden sm:inline">Scan</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
+            <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
               <Users size={15} />
               <span className="hidden sm:inline">Share</span>
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 bg-stone-100 p-1 rounded-xl w-fit">
           {(['current','saved','shared'] as const).map(t => (
             <button
               key={t}
+              type="button"
               onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all
                 ${tab === t ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
@@ -843,11 +795,9 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {tab === 'current' && (
           <div className="max-w-2xl">
-            {/* Quick add bar */}
             <form onSubmit={handleAdd} className="flex gap-2 mb-5">
               <input
                 value={newItem}
@@ -866,7 +816,6 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
               </button>
             </form>
 
-            {/* Search + filter */}
             <div className="flex gap-2 mb-4">
               <div className="flex-1 relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -1023,6 +972,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
   const [itemName, setItemName] = useState('');
   const [itemQty, setItemQty] = useState('1');
   const [itemPlace, setItemPlace] = useState(storagePlaces[0]?.name || 'Pantry');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filtered = items
     .filter(i => filter === 'all' || i.status === filter || (filter === 'good' && (i.status === 'good' || i.status === 'ok')))
@@ -1046,29 +996,36 @@ function PantryView({ items, onUpdateStock, onAdd }: {
           <div>
             <h1 className="text-xl font-semibold text-stone-900">Pantry & Inventory</h1>
             <p className="text-sm text-stone-500 mt-0.5">
-              {items.length} items · {storagePlaces.length} storage places
+              {items.length} items · {outCount + lowCount} need attention
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAddPlace((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
-            >
+            <button type="button" onClick={() => setShowAddPlace((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
               <Plus size={15} />
               <span className="hidden sm:inline">Add place</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setShowAddItem((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: '#6D9C0E' }}
-            >
+            <button type="button" onClick={() => setShowAddItem((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors" style={{ backgroundColor: '#6D9C0E' }}>
               <Plus size={15} />
               <span className="hidden sm:inline">Add Item</span>
             </button>
           </div>
         </div>
+        {(outCount > 0 || lowCount > 0) && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {outCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs font-medium text-red-600">{outCount} out of stock</span>
+              </div>
+            )}
+            {lowCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="text-xs font-medium text-amber-600">{lowCount} running low</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {showAddPlace && (
           <form
@@ -1179,59 +1136,95 @@ function PantryView({ items, onUpdateStock, onAdd }: {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search inventory…"
+              placeholder="Search pantry…"
               className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:bg-white"
             />
+          </div>
+          <div className="flex gap-1 bg-stone-100 p-1 rounded-xl">
+            <button type="button" onClick={() => setViewMode('grid')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${viewMode === 'grid' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>Grid</button>
+            <button type="button" onClick={() => setViewMode('list')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${viewMode === 'list' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>List</button>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl space-y-1.5">
-          {filtered.map(item => {
-            const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
-            return (
-              <div key={item.id}
-                className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
-                  <Package size={14} style={{ color: catColor }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-stone-900 text-sm">{item.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500">{item.place}</span>
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filtered.map((item) => {
+              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
+              return (
+                <div key={item.id} className="bg-white rounded-2xl border border-stone-100 p-4 hover:border-stone-200 hover:shadow-sm transition-all group">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: catColor + '18' }}>
+                      <Package size={14} style={{ color: catColor }} />
+                    </div>
+                    <StatusChip status={item.status} />
                   </div>
-                  <div className="mt-1.5 flex items-center gap-3">
-                    <StockBar qty={item.qty} max={item.max} status={item.status} />
-                    <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
+                  <div className="font-medium text-stone-900 text-sm leading-tight mb-1">{item.name}</div>
+                  <div className="text-xs text-stone-400 mb-1">{item.category}</div>
+                  <div className="text-xs text-stone-500 mb-3">{item.place}</div>
+                  <StockBar qty={item.qty} max={item.max} status={item.status} />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-stone-500">{item.qty} / {item.max} {item.unit}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStock(item.id, item.qty + 1)}
+                    className="w-full mt-3 text-xs py-1.5 rounded-lg font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ backgroundColor: catColor }}
+                  >
+                    + Add Stock
+                  </button>
                 </div>
-                <select
-                  value={item.place}
-                  onChange={(e) => setPantryItemPlace(item.id, e.target.value)}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 text-stone-600 max-w-[140px]"
-                  title="Move to storage place"
-                >
-                  {storagePlaces.map((p) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                  {!storagePlaces.some((p) => p.name === item.place) && (
-                    <option value={item.place}>{item.place}</option>
-                  )}
-                </select>
-                <StatusChip status={item.status} />
-                <button
-                  onClick={() => onUpdateStock(item.id, item.qty + 1)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
-                  style={{ backgroundColor: catColor }}
-                >
-                  + Stock
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
+              );
+            })}
+          </div>
+        ) : (
+          <div className="max-w-3xl space-y-1.5">
+            {filtered.map((item) => {
+              const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
+              return (
+                <div key={item.id} className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
+                    <Package size={14} style={{ color: catColor }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-stone-900 text-sm">{item.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500">{item.place}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <StockBar qty={item.qty} max={item.max} status={item.status} />
+                      <span className="text-xs text-stone-400 flex-shrink-0">{item.qty}/{item.max} {item.unit}</span>
+                    </div>
+                  </div>
+                  <select
+                    value={item.place}
+                    onChange={(e) => setPantryItemPlace(item.id, e.target.value)}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 text-stone-600 max-w-[140px]"
+                    title="Move to storage place"
+                  >
+                    {storagePlaces.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                    {!storagePlaces.some((p) => p.name === item.place) && (
+                      <option value={item.place}>{item.place}</option>
+                    )}
+                  </select>
+                  <StatusChip status={item.status} />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStock(item.id, item.qty + 1)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
+                    style={{ backgroundColor: catColor }}
+                  >
+                    + Stock
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Package size={40} className="text-stone-200 mb-3" />
@@ -1350,6 +1343,7 @@ function CalendarView() {
     return new Date(t.getFullYear(), t.getMonth(), 1);
   });
   const [selectedIso, setSelectedIso] = useState(todayIsoLocal());
+  const [viewMode, setViewMode] = useState<'list' | 'month'>('month');
 
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const todayIso = todayIsoLocal();
@@ -1362,91 +1356,113 @@ function CalendarView() {
 
   const upcoming = EVENTS.filter((e) => e.dateIso >= todayIso).slice(0, 12);
   const selectedEvents = EVENTS.filter((e) => e.dateIso === selectedIso);
+  const todayEventsList = EVENTS.filter((e) => e.dateIso === todayIso);
 
   return (
     <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Calendar</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
-          >
-            ‹
-          </button>
-          <span className="text-sm font-medium text-stone-900 px-2">{monthName}</span>
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
-          >
-            ›
-          </button>
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold text-stone-900">{viewMode === 'list' ? "Today's Schedule" : 'Calendar'}</h1>
+          <p className="text-sm text-stone-500 mt-0.5">{monthName} · family schedule</p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1 bg-white border border-stone-200 p-1 rounded-xl">
+            <button type="button" className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-stone-500 hover:bg-stone-50'}`} onClick={() => setViewMode('list')} title="List"><List size={18} /></button>
+            <button type="button" className={`p-2 rounded-lg ${viewMode === 'month' ? 'bg-indigo-50 text-indigo-700' : 'text-stone-500 hover:bg-stone-50'}`} onClick={() => setViewMode('month')} title="Month"><Calendar size={18} /></button>
+          </div>
+          <div className="flex gap-1 bg-white border border-stone-200 p-1 rounded-xl">
+            <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
+            <button type="button" className="px-3 py-1.5 rounded-lg text-sm font-medium text-stone-900">{monthName}</button>
+            <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
+          </div>
+          <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"><Plus size={16} /> Add event</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card className="p-5">
-            <div className="grid grid-cols-7 mb-2">
-              {days.map((d) => (
-                <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: startDay }).map((_, i) => (
-                <div key={`e-${i}`} />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
-                const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isToday = iso === todayIso;
-                const isSelected = iso === selectedIso;
-                const dayEvents = EVENTS.filter((e) => e.dateIso === iso);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      setSelectedIso(iso);
-                      setEventDate(iso);
-                    }}
-                    className={`aspect-square flex flex-col items-center justify-center rounded-xl text-sm transition-all
-                      ${isToday ? 'bg-indigo-600 text-white font-semibold' : isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
-                  >
-                    {day}
-                    {dayEvents.length > 0 && (
-                      <div className="flex gap-0.5 mt-0.5">
-                        {dayEvents.slice(0, 3).map((e) => (
-                          <div
-                            key={e.id}
-                            className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : ''}`}
-                            style={isToday ? undefined : { backgroundColor: e.color }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-          {selectedEvents.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">
-                {selectedIso === todayIso ? 'Today' : selectedIso}
-              </div>
-              {selectedEvents.map((evt) => (
-                <Card key={evt.id} className="p-3 flex items-center gap-3">
-                  <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
-                    <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
+          {viewMode === 'list' ? (
+            <div className="space-y-3">
+              {(todayEventsList.length ? todayEventsList : upcoming.slice(0, 6)).map((evt) => (
+                <div key={evt.id} className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-stone-100">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
+                    <Calendar size={20} />
                   </div>
-                </Card>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-stone-900 truncate">{evt.title}</div>
+                    <div className="text-sm text-stone-500 mt-0.5">{evt.date} · {evt.time} · {evt.who}</div>
+                  </div>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Household</span>
+                </div>
               ))}
+              {todayEventsList.length === 0 && upcoming.length === 0 && (
+                <div className="p-8 text-center text-sm text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">No family events scheduled yet.</div>
+              )}
             </div>
+          ) : (
+            <>
+              <Card className="p-6">
+                <div className="grid grid-cols-7 mb-2">
+                  {days.map((d) => (
+                    <div key={d} className="text-center text-xs font-semibold text-stone-500 py-1">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: startDay }).map((_, i) => (
+                    <div key={`e-${i}`} />
+                  ))}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isToday = iso === todayIso;
+                    const isSelected = iso === selectedIso;
+                    const dayEvents = EVENTS.filter((e) => e.dateIso === iso);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          setSelectedIso(iso);
+                          setEventDate(iso);
+                        }}
+                        className={`aspect-square flex flex-col items-center justify-center rounded-2xl text-sm transition-all
+                          ${isToday ? 'bg-indigo-600 text-white font-semibold' : isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
+                      >
+                        {day}
+                        {dayEvents.length > 0 && (
+                          <div className="flex gap-0.5 mt-0.5">
+                            {dayEvents.slice(0, 3).map((e) => (
+                              <div
+                                key={e.id}
+                                className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : ''}`}
+                                style={isToday ? undefined : { backgroundColor: e.color }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+              {selectedEvents.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    {selectedIso === todayIso ? 'Today' : selectedIso}
+                  </div>
+                  {selectedEvents.map((evt) => (
+                    <Card key={evt.id} className="p-4 flex items-center gap-3">
+                      <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-stone-900 truncate">{evt.title}</div>
+                        <div className="text-xs text-stone-500">{evt.time} · {evt.who}</div>
+                      </div>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">Activity</span>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -1524,13 +1540,12 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
 
   return (
     <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Cleaning & Kitchen</h1>
-        <button
-          type="button"
-          onClick={() => setShowAdd((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 transition-colors"
-        >
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold text-stone-900">Cleaning & Kitchen</h1>
+          <p className="text-sm text-stone-500 mt-0.5">Today and upcoming household chores</p>
+        </div>
+        <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600">
           <Plus size={15} /> Add Chore
         </button>
       </div>
@@ -2045,69 +2060,6 @@ function SubscriptionsView() {
   );
 }
 
-// ── Planner Page ──────────────────────────────────────────────────────────────
-
-function PlannerView() {
-  const { members: FAMILY_MEMBERS, events } = useHub();
-  const todayIso = todayIsoLocal();
-  // Mon–Sun of the current week
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    const day = d.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + mondayOffset + i);
-    return d;
-  });
-
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Weekly Planner</h1>
-        <span className="text-sm text-stone-500">
-          {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
-          {days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
-        {days.map((dateObj) => {
-          const iso = toIsoLocal(dateObj);
-          const label = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          const tasks = events
-            .filter((e) => e.dateIso === iso)
-            .map((e) => ({ text: `${e.title} · ${e.time}`, member: e.who, color: e.color }));
-          const isToday = iso === todayIso;
-          return (
-            <div
-              key={iso}
-              className={`rounded-2xl border p-4 ${isToday ? 'border-indigo-200 bg-indigo-50' : 'bg-white border-stone-100'}`}
-            >
-              <div className={`text-xs font-semibold mb-3 ${isToday ? 'text-indigo-600' : 'text-stone-400'}`}>
-                {label.split(',')[0]}
-                {isToday && <span className="ml-1.5 text-white bg-indigo-600 px-1.5 py-0.5 rounded text-[10px]">Today</span>}
-              </div>
-              <div className="space-y-2">
-                {tasks.map((task, i) => {
-                  const member = FAMILY_MEMBERS.find((m) => m.name === task.member);
-                  return (
-                    <div key={i} className="text-xs text-stone-700 leading-snug flex gap-1.5">
-                      <div
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
-                        style={{ backgroundColor: member?.color || task.color }}
-                      />
-                      {task.text}
-                    </div>
-                  );
-                })}
-                {tasks.length === 0 && <div className="text-xs text-stone-300">No events</div>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Family Members Page ───────────────────────────────────────────────────────
 
 function FamilyMembersView() {
@@ -2308,10 +2260,22 @@ function DocsView() {
   );
 }
 
+
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
 function SettingsView() {
-  const { members, householdName, setHouseholdName, navigate, activeMemberId, setActiveMember } = useHub();
+  const {
+    members,
+    householdName,
+    setHouseholdName,
+    navigate,
+    activeMemberId,
+    setActiveMember,
+    setPreviewMode,
+    previewMode,
+    docs,
+    badges,
+  } = useHub();
   const [nameDraft, setNameDraft] = useState(householdName);
   const [saved, setSaved] = useState(false);
   const activeName = members.find((m) => m.id === activeMemberId)?.name || 'Not set';
@@ -2322,74 +2286,141 @@ function SettingsView() {
       <div className="space-y-6">
         <div>
           <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Household</div>
-          <Card className="p-5 space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">Household name</label>
-              <div className="flex gap-2">
-                <input
-                  value={nameDraft}
-                  onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
-                  className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHouseholdName(nameDraft);
-                    setSaved(true);
-                  }}
-                  className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600"
-                >
-                  Save
-                </button>
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-100 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">Household name</label>
+                <div className="flex gap-2">
+                  <input
+                    value={nameDraft}
+                    onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHouseholdName(nameDraft);
+                      setSaved(true);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Save
+                  </button>
+                </div>
+                {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
               </div>
-              {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">
+                  Who is using this device
+                </label>
+                <select
+                  value={activeMemberId || ''}
+                  onChange={(e) => setActiveMember(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <div className="text-xs text-stone-400 mt-1">Messages and med logs attribute to {activeName}</div>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">
-                Who is using this device
-              </label>
-              <select
-                value={activeMemberId || ''}
-                onChange={(e) => setActiveMember(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
-              >
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-              <div className="text-xs text-stone-400 mt-1">Messages and med logs attribute to {activeName}</div>
-            </div>
-            <button type="button" onClick={() => navigate('family')} className="w-full flex items-center gap-4 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Users size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('family')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Users size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Family members</div>
                 <div className="text-xs text-stone-400 mt-0.5">{members.length} members</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
-            <button type="button" onClick={() => navigate('notifications')} className="w-full flex items-center gap-4 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Bell size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('notifications')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Bell size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Notifications</div>
-                <div className="text-xs text-stone-400 mt-0.5">Open alerts</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {badges.notifications > 0 ? `${badges.notifications} unread` : 'Configured'}
+                </div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
           </Card>
         </div>
+
+        <div>
+          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Data</div>
+          <Card className="overflow-hidden">
+            <button
+              type="button"
+              onClick={() => navigate('docs')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <FileText size={16} className="text-stone-600" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Documents</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {docs.length > 0 ? `${docs.length} saved docs` : 'Household notes & docs'}
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+          </Card>
+        </div>
+
         <div>
           <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">App</div>
           <Card className="overflow-hidden">
-            <button type="button" onClick={() => navigate('home')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left border-b border-stone-100">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Home size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => setPreviewMode?.('app')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Tablet size={16} className="text-stone-600" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Wall display</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {previewMode === 'app' ? 'Tablet / kiosk frame on' : 'Surface Pro style frame'}
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('home')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Home size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Home</div>
                 <div className="text-xs text-stone-400 mt-0.5">Landing page when the app opens</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
-            <button type="button" onClick={() => navigate('subscriptions')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Key size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('subscriptions')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Star size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Subscriptions</div>
                 <div className="text-xs text-stone-400 mt-0.5">Password + who pays</div>
@@ -2485,6 +2516,9 @@ export default function App() {
       subscriptions: mapHubSubscriptions(vault, data),
       notifications,
       docs: mapHubDocs(data),
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      setPreviewMode,
+      previewMode,
       badges: {
         messages: messages.filter((m) => !m.read).length,
         shopping: shoppingItems.filter((i) => !i.checked).length,
@@ -2535,7 +2569,7 @@ export default function App() {
       setHouseholdName: (name) => setData((prev) => updateHouseholdName(prev, name)),
       navigate: setView,
     };
-  }, [data, vault]);
+  }, [data, vault, previewMode]);
 
   useEffect(() => {
     try {
@@ -2600,14 +2634,23 @@ export default function App() {
         return <PetsView />;
       case 'subscriptions':
         return <SubscriptionsView />;
-      case 'planner':
-        return <PlannerView />;
       case 'family':
         return <FamilyMembersView />;
       case 'notifications':
         return <NotificationsView />;
       case 'docs':
         return <DocsView />;
+      case 'wall':
+        return (
+          <HomeView
+            onNavigate={setView}
+            onQuickAdd={setQuickAddMode}
+            shoppingItems={hub.shoppingItems}
+            pantryItems={hub.pantryItems}
+            chores={hub.chores}
+            onToggleChore={hub.toggleChore}
+          />
+        );
       case 'settings':
         return <SettingsView />;
     }
@@ -2621,7 +2664,7 @@ export default function App() {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((p) => !p)}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         {renderView()}
       </main>
 
@@ -2638,20 +2681,19 @@ export default function App() {
     </div>
   );
 
+  // Full-bleed shell matches the attached Figma/admin reference.
+  // Wall/tablet frame is opt-in via Account → Wall display (previewMode === 'app').
   return (
     <HubContext.Provider value={hub}>
-      <div className="relative h-screen w-screen overflow-hidden bg-stone-950">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
-          <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
-        </div>
-
-        {previewMode === 'desktop' ? (
-          <div className="h-full w-full pt-14">{shell}</div>
-        ) : (
+      {previewMode === 'app' ? (
+        <div className="relative h-screen w-screen overflow-hidden bg-[#0c0a09]">
+          <div className="pointer-events-auto absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
+            <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
+          </div>
           <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#292524_0%,#0c0a09_55%)] px-4 pb-6 pt-16">
             <div className="flex w-full max-w-[1180px] flex-col items-center gap-3">
               <div className="text-center text-xs font-medium tracking-wide text-stone-400">
-                App view · landscape tablet frame (wall display)
+                Wall display · landscape tablet frame
               </div>
               <div
                 className="w-full overflow-hidden rounded-[28px] border border-stone-700 bg-stone-900 shadow-[0_40px_80px_rgba(0,0,0,0.45)]"
@@ -2661,15 +2703,19 @@ export default function App() {
                   <div className="mb-2 flex items-center justify-center">
                     <div className="h-1.5 w-24 rounded-full bg-stone-700" />
                   </div>
-                  <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#F8F6F2]">
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[var(--app-bg)]">
                     {shell}
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="h-screen w-screen overflow-hidden bg-[var(--app-bg)]">
+          {shell}
+        </div>
+      )}
     </HubContext.Provider>
   );
 }
