@@ -5,10 +5,10 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users, List, Image, Layers, RefreshCw, Cloud, Wind, Droplets,
+  Users, List, Cloud, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
-  PawPrint, CalendarCheck, Bookmark, Key, FileText,
-  Monitor, Tablet, Camera, Star,
+  PawPrint, Bookmark, Key, FileText,
+  Monitor, Tablet, Star,
 } from 'lucide-react';
 import type { Project } from '../data/familyData';
 import { useFamilyData } from '../hooks/useFamilyData';
@@ -74,8 +74,7 @@ type PreviewMode = 'desktop' | 'app';
 type View =
   | 'home' | 'messages' | 'calendar' | 'shopping' | 'pantry'
   | 'cleaning' | 'emergency' | 'pets' | 'subscriptions'
-  | 'projects' | 'photos' | 'routines'
-  | 'planner' | 'family' | 'notifications' | 'docs' | 'settings'
+  | 'family' | 'notifications' | 'docs' | 'settings'
   | 'wall';
 
 const PREVIEW_STORAGE_KEY = '491wd-preview-mode';
@@ -237,12 +236,8 @@ const PRIMARY_NAV: NavItem[] = [
 ];
 
 const TOOLS_NAV: NavItem[] = [
-  { id: 'pets',          label: 'Pets',           icon: PawPrint,      color: '#F97316' },
-  { id: 'subscriptions', label: 'Subscriptions',  icon: CreditCard,    color: '#8B5CF6' },
-  { id: 'projects',      label: 'Projects',       icon: Layers,        color: '#14B8A6' },
-  { id: 'photos',        label: 'Photos',         icon: Image,         color: '#EC4899' },
-  { id: 'planner',       label: 'Planner',        icon: CalendarCheck, color: '#3B82F6' },
-  { id: 'routines',      label: 'Routines',       icon: RefreshCw,     color: '#06B6D4' },
+  { id: 'pets',          label: 'Pets',           icon: PawPrint,   color: '#F97316' },
+  { id: 'subscriptions', label: 'Subscriptions',  icon: CreditCard, color: '#8B5CF6' },
 ];
 
 const SYSTEM_NAV: NavItem[] = [
@@ -469,13 +464,6 @@ function WeatherStrip() {
 
 function todayIsoLocal(): string {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function toIsoLocal(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -2072,69 +2060,6 @@ function SubscriptionsView() {
   );
 }
 
-// ── Planner Page ──────────────────────────────────────────────────────────────
-
-function PlannerView() {
-  const { members: FAMILY_MEMBERS, events } = useHub();
-  const todayIso = todayIsoLocal();
-  // Mon–Sun of the current week
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    const day = d.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + mondayOffset + i);
-    return d;
-  });
-
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Weekly Planner</h1>
-        <span className="text-sm text-stone-500">
-          {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
-          {days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
-        {days.map((dateObj) => {
-          const iso = toIsoLocal(dateObj);
-          const label = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          const tasks = events
-            .filter((e) => e.dateIso === iso)
-            .map((e) => ({ text: `${e.title} · ${e.time}`, member: e.who, color: e.color }));
-          const isToday = iso === todayIso;
-          return (
-            <div
-              key={iso}
-              className={`rounded-2xl border p-4 ${isToday ? 'border-indigo-200 bg-indigo-50' : 'bg-white border-stone-100'}`}
-            >
-              <div className={`text-xs font-semibold mb-3 ${isToday ? 'text-indigo-600' : 'text-stone-400'}`}>
-                {label.split(',')[0]}
-                {isToday && <span className="ml-1.5 text-white bg-indigo-600 px-1.5 py-0.5 rounded text-[10px]">Today</span>}
-              </div>
-              <div className="space-y-2">
-                {tasks.map((task, i) => {
-                  const member = FAMILY_MEMBERS.find((m) => m.name === task.member);
-                  return (
-                    <div key={i} className="text-xs text-stone-700 leading-snug flex gap-1.5">
-                      <div
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
-                        style={{ backgroundColor: member?.color || task.color }}
-                      />
-                      {task.text}
-                    </div>
-                  );
-                })}
-                {tasks.length === 0 && <div className="text-xs text-stone-300">No events</div>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Family Members Page ───────────────────────────────────────────────────────
 
 function FamilyMembersView() {
@@ -2335,169 +2260,6 @@ function DocsView() {
   );
 }
 
-
-// ── Collections (Make-site chrome; live FamilyData where available) ───────────
-
-const PROJECT_STATUS_COLORS: Record<string, string> = {
-  active: '#14B8A6',
-  planned: '#94a3b8',
-  waiting: '#F59E0B',
-  done: '#10B981',
-  archived: '#94a3b8',
-};
-
-function projectProgress(p: Project): number {
-  const milestones = p.milestones || [];
-  if (milestones.length === 0) {
-    if (p.status === 'done') return 100;
-    if (p.status === 'active') return 50;
-    if (p.status === 'waiting') return 25;
-    return 10;
-  }
-  const done = milestones.filter((m) => m.status === 'done').length;
-  return Math.round((done / milestones.length) * 100);
-}
-
-function ProjectsView() {
-  const { projects } = useHub();
-  return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Projects</h1>
-        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 transition-colors">
-          <Plus size={15} /> New Project
-        </button>
-      </div>
-      {projects.length === 0 ? (
-        <div className="p-8 text-center text-sm text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-          No projects yet — existing FamilyData is preserved when you add some.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {projects.map((proj) => {
-            const color = PROJECT_STATUS_COLORS[proj.status] || '#14B8A6';
-            const progress = projectProgress(proj);
-            const statusLabel = proj.status === 'active' ? 'In progress' : proj.status === 'planned' ? 'Planning' : proj.status === 'done' ? 'Done' : proj.status;
-            return (
-              <Card key={proj.id} className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '18' }}>
-                    <Layers size={18} style={{ color }} />
-                  </div>
-                  <Badge color={proj.status === 'done' ? '#10B981' : color} light>{statusLabel}</Badge>
-                </div>
-                <h3 className="font-semibold text-stone-900 mb-1">{proj.name || proj.title}</h3>
-                <div className="text-xs text-stone-400 mb-3">
-                  {proj.targetDate ? `Due ${proj.targetDate}` : 'No due date'}
-                  {proj.milestones?.length ? ` · ${proj.milestones.length} milestones` : ''}
-                </div>
-                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: color }} />
-                </div>
-                <div className="text-xs text-stone-400 mt-1.5">{progress}% complete</div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PhotosView() {
-  const placeholders = [
-    { id: '1', label: 'Park day', date: 'Add a photo' },
-    { id: '2', label: 'Sunday dinner', date: 'Add a photo' },
-    { id: '3', label: 'Living room', date: 'Add a photo' },
-    { id: '4', label: 'Pet moments', date: 'Add a photo' },
-    { id: '5', label: 'Garden', date: 'Add a photo' },
-    { id: '6', label: 'Cooking night', date: 'Add a photo' },
-  ];
-
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Photos</h1>
-        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 transition-colors">
-          <Camera size={15} /> Upload
-        </button>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {placeholders.map((photo) => (
-          <div
-            key={photo.id}
-            className="group relative rounded-2xl overflow-hidden bg-stone-200 aspect-square cursor-default"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-stone-100 to-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400">
-              <Image size={28} className="opacity-50" />
-              <span className="text-xs font-medium text-stone-500">{photo.label}</span>
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
-              <div className="text-white text-sm font-medium">{photo.label}</div>
-              <div className="text-white/70 text-xs">{photo.date}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-stone-400 mt-4 text-center">
-        Site-like gallery shell — FamilyData is not seeded with demo photos.
-      </p>
-    </div>
-  );
-}
-
-const ROUTINE_PRESETS = [
-  { id: 'r1', name: 'Morning routine', time: '7:00 AM', steps: 6, days: ['M', 'T', 'W', 'Th', 'F'], color: '#F59E0B' },
-  { id: 'r2', name: 'School drop-off', time: '8:15 AM', steps: 3, days: ['M', 'T', 'W', 'Th', 'F'], color: '#4F46E5' },
-  { id: 'r3', name: 'After-school', time: '3:30 PM', steps: 4, days: ['M', 'T', 'W', 'Th', 'F'], color: '#10B981' },
-  { id: 'r4', name: 'Evening wind-down', time: '8:30 PM', steps: 5, days: ['M', 'T', 'W', 'Th', 'F', 'Sa', 'Su'], color: '#8B5CF6' },
-  { id: 'r5', name: 'Weekend chores', time: '10:00 AM', steps: 8, days: ['Sa'], color: '#EA580C' },
-];
-
-function RoutinesView() {
-  return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Routines</h1>
-        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 transition-colors">
-          <Plus size={15} /> New Routine
-        </button>
-      </div>
-      <div className="space-y-3">
-        {ROUTINE_PRESETS.map((r) => (
-          <Card key={r.id} className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: r.color + '18' }}>
-              <RefreshCw size={20} style={{ color: r.color }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-semibold text-stone-900">{r.name}</div>
-              <div className="text-sm text-stone-500 mt-0.5">{r.time} · {r.steps} steps</div>
-              <div className="flex gap-1 mt-2">
-                {['M', 'T', 'W', 'Th', 'F', 'Sa', 'Su'].map((d) => (
-                  <span
-                    key={d}
-                    className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${
-                      r.days.includes(d) ? 'text-white' : 'text-stone-300 bg-stone-100'
-                    }`}
-                    style={r.days.includes(d) ? { backgroundColor: r.color } : undefined}
-                  >
-                    {d}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <button type="button" className="text-stone-300 hover:text-stone-600 p-1 transition-colors">
-              <Edit2 size={15} />
-            </button>
-          </Card>
-        ))}
-      </div>
-      <p className="text-xs text-stone-400 mt-4">
-        Display chrome matches the Figma site. Routine presets are UI-only and do not write FamilyData.
-      </p>
-    </div>
-  );
-}
 
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
@@ -2872,20 +2634,12 @@ export default function App() {
         return <PetsView />;
       case 'subscriptions':
         return <SubscriptionsView />;
-      case 'planner':
-        return <PlannerView />;
       case 'family':
         return <FamilyMembersView />;
       case 'notifications':
         return <NotificationsView />;
       case 'docs':
         return <DocsView />;
-      case 'projects':
-        return <ProjectsView />;
-      case 'photos':
-        return <PhotosView />;
-      case 'routines':
-        return <RoutinesView />;
       case 'wall':
         return (
           <HomeView
