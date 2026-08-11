@@ -2,6 +2,7 @@ import type {
   FamilyData,
   FamilyMember,
   HouseholdNotification,
+  HouseholdStorageLocation,
   MessageBoardItem,
   PantryItem,
   Pet,
@@ -21,12 +22,12 @@ import {
 } from "../lib/petFleaMedication";
 import { getMemberFullName } from "../lib/utils";
 import {
-  addVaultPassword,
   addVaultSubscription,
+  deleteVaultSubscription,
   readHouseholdVault,
+  updateVaultSubscription,
   writeHouseholdVault,
   type HouseholdVault,
-  type VaultPassword,
   type VaultSubscription,
 } from "../lib/householdVaultStorage";
 
@@ -57,6 +58,14 @@ export type HubPantryItem = {
   category: string;
   expiry: string | null;
   status: HubPantryStatus;
+  /** Storage place display name (fridge, garage shelf, …). */
+  place: string;
+};
+
+export type HubStoragePlace = {
+  id: string;
+  name: string;
+  itemCount: number;
 };
 
 export type HubChore = {
@@ -112,17 +121,9 @@ export type HubEmergencyItem = {
 export type HubSubscription = {
   id: string;
   name: string;
-  amount: number;
-  cycle: string;
-  due: string;
-  color: string;
-};
-
-export type HubPassword = {
-  id: string;
-  label: string;
-  username: string;
-  hint: string;
+  password: string;
+  payerMemberId: string;
+  payerName: string;
   color: string;
 };
 
@@ -228,6 +229,14 @@ export function mapHubShopping(data: FamilyData): HubShoppingItem[] {
   }));
 }
 
+function pantryPlaceName(item: PantryItem): string {
+  const detail = item.locationDetail?.trim();
+  if (detail) return detail;
+  if (item.location?.trim()) return item.location.trim();
+  if (item.storageArea?.trim()) return item.storageArea.trim();
+  return "Pantry";
+}
+
 export function mapHubPantry(data: FamilyData): HubPantryItem[] {
   return data.pantry
     .filter((item) => !item.inactiveInInventory)
@@ -243,8 +252,118 @@ export function mapHubPantry(data: FamilyData): HubPantryItem[] {
         category: item.category || "Pantry",
         expiry: item.bestByDate || item.expiryDate || null,
         status: mapStockStatus(item.status, qty, max),
+        place: pantryPlaceName(item),
       };
     });
+}
+
+const DEFAULT_STORAGE_PLACE_NAMES = [
+  "Kitchen Fridge",
+  "Kitchen Freezer",
+  "Pantry",
+  "Kitchen Cabinets",
+  "Laundry Room Freezer",
+  "Garage",
+] as const;
+
+export function mapHubStoragePlaces(data: FamilyData): HubStoragePlace[] {
+  const items = mapHubPantry(data);
+  const places = [...(data.storageLocations ?? [])];
+  if (places.length === 0) {
+    for (const name of DEFAULT_STORAGE_PLACE_NAMES) {
+      places.push({
+        id: `place-${name.toLowerCase().replace(/\s+/g, "-")}`,
+        name,
+        storageArea: name.includes("Fridge")
+          ? "Kitchen Fridge"
+          : name.includes("Freezer")
+            ? "Kitchen Freezer"
+            : name === "Pantry"
+              ? "Pantry"
+              : "Custom Location",
+        createdAt: "",
+        updatedAt: "",
+      });
+    }
+  }
+  // Include any place names that exist on items but not in the catalog.
+  const known = new Set(places.map((p) => p.name.trim().toLowerCase()));
+  for (const item of items) {
+    const key = item.place.trim().toLowerCase();
+    if (!key || known.has(key)) continue;
+    known.add(key);
+    places.push({
+      id: `place-auto-${key.replace(/\s+/g, "-")}`,
+      name: item.place,
+      storageArea: "Custom Location",
+      createdAt: "",
+      updatedAt: "",
+    });
+  }
+  return places.map((p) => ({
+    id: p.id,
+    name: p.name,
+    itemCount: items.filter(
+      (i) => i.place.trim().toLowerCase() === p.name.trim().toLowerCase(),
+    ).length,
+  }));
+}
+
+export function addStoragePlace(data: FamilyData, name: string): FamilyData {
+  const trimmed = name.trim();
+  if (!trimmed) return data;
+  const exists = (data.storageLocations ?? []).some(
+    (p) => p.name.trim().toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (exists) return data;
+  const now = new Date().toISOString();
+  const place: HouseholdStorageLocation = {
+    id: `place-${Date.now()}`,
+    name: trimmed,
+    storageArea: "Custom Location",
+    createdAt: now,
+    updatedAt: now,
+  };
+  // Ensure defaults are persisted the first time the household customizes places.
+  const base =
+    (data.storageLocations ?? []).length > 0
+      ? data.storageLocations
+      : DEFAULT_STORAGE_PLACE_NAMES.map((n, i) => ({
+          id: `place-seed-${i}`,
+          name: n,
+          storageArea: (n.includes("Fridge")
+            ? "Kitchen Fridge"
+            : n.includes("Freezer")
+              ? "Kitchen Freezer"
+              : n === "Pantry"
+                ? "Pantry"
+                : "Custom Location") as HouseholdStorageLocation["storageArea"],
+          createdAt: now,
+          updatedAt: now,
+        }));
+  return { ...data, storageLocations: [...base, place] };
+}
+
+export function setPantryItemPlace(
+  data: FamilyData,
+  itemId: string,
+  placeName: string,
+): FamilyData {
+  const trimmed = placeName.trim() || "Pantry";
+  return {
+    ...data,
+    pantry: data.pantry.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            location: "Custom Location",
+            storageArea: "Custom Location",
+            locationDetail: trimmed,
+            lastUpdated: new Date().toISOString(),
+          }
+        : item,
+    ),
+  };
 }
 
 export function mapHubChores(data: FamilyData): HubChore[] {
@@ -444,12 +563,20 @@ export function mapHubDocs(data: FamilyData): HubDoc[] {
   }));
 }
 
-export function mapHubSubscriptions(vault: HouseholdVault): HubSubscription[] {
-  return vault.subscriptions.map((s: VaultSubscription) => ({ ...s }));
-}
-
-export function mapHubPasswords(vault: HouseholdVault): HubPassword[] {
-  return vault.passwords.map((p: VaultPassword) => ({ ...p }));
+export function mapHubSubscriptions(
+  vault: HouseholdVault,
+  data: FamilyData,
+): HubSubscription[] {
+  return vault.subscriptions.map((s: VaultSubscription) => ({
+    id: s.id,
+    name: s.name,
+    password: s.password,
+    payerMemberId: s.payerMemberId,
+    payerName: s.payerMemberId
+      ? memberNameById(data.familyMembers, s.payerMemberId)
+      : "Unassigned",
+    color: s.color,
+  }));
 }
 
 export function postFamilyMessage(
@@ -609,17 +736,31 @@ export function addPantryItem(
   data: FamilyData,
   name: string,
   qty: string,
+  placeName?: string,
 ): FamilyData {
   const now = new Date().toISOString();
   const quantity = qty || "1";
+  const place = placeName?.trim() || "Pantry";
+  const knownArea = (
+    [
+      "Kitchen Fridge",
+      "Kitchen Freezer",
+      "Kitchen Cabinets",
+      "Pantry",
+      "Laundry Room Fridge",
+      "Laundry Room Freezer",
+      "Family Room Freezer",
+    ] as const
+  ).find((a) => a.toLowerCase() === place.toLowerCase());
   const item: PantryItem = {
     id: `pantry-${Date.now()}`,
     name,
     quantity,
     unit: "items",
     category: "Pantry",
-    storageArea: "Pantry",
-    location: "Pantry",
+    storageArea: knownArea ?? "Custom Location",
+    location: knownArea ?? "Custom Location",
+    locationDetail: knownArea ? undefined : place,
     status: "Stocked",
     isStaple: false,
     tags: [],
@@ -824,5 +965,11 @@ export function sessionMemberId(data: FamilyData): string | undefined {
   return resolveSessionMemberIdForUi(data);
 }
 
-export { readHouseholdVault, writeHouseholdVault, addVaultSubscription, addVaultPassword };
+export {
+  readHouseholdVault,
+  writeHouseholdVault,
+  addVaultSubscription,
+  updateVaultSubscription,
+  deleteVaultSubscription,
+};
 export type { HouseholdVault, FamilyData };

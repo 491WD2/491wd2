@@ -1,6 +1,6 @@
 /**
- * Multi-item household subscriptions + password vault.
- * Device-only localStorage — not encrypted. Prefer hints over real passwords.
+ * Household subscriptions vault (device-only localStorage).
+ * Each subscription stores a login/password and who pays for it.
  */
 
 export const HOUSEHOLD_VAULT_STORAGE_KEY = "familysite-491:household-vault";
@@ -8,109 +8,90 @@ export const HOUSEHOLD_VAULT_STORAGE_KEY = "familysite-491:household-vault";
 export type VaultSubscription = {
   id: string;
   name: string;
-  amount: number;
-  cycle: "Monthly" | "Yearly" | "Quarterly";
-  due: string;
-  color: string;
-};
-
-export type VaultPassword = {
-  id: string;
-  label: string;
-  username: string;
-  hint: string;
+  /** Account password / PIN for this subscription (device-only). */
+  password: string;
+  /** Family member id responsible for paying. */
+  payerMemberId: string;
   color: string;
 };
 
 export type HouseholdVault = {
-  version: 1;
+  version: 2;
   subscriptions: VaultSubscription[];
-  passwords: VaultPassword[];
 };
 
 const DEFAULT_VAULT: HouseholdVault = {
-  version: 1,
+  version: 2,
   subscriptions: [
-    { id: "1", name: "Netflix", amount: 22.99, cycle: "Monthly", due: "Aug 15", color: "#EF4444" },
-    { id: "2", name: "Spotify Family", amount: 16.99, cycle: "Monthly", due: "Aug 18", color: "#10B981" },
-    { id: "3", name: "Amazon Prime", amount: 139, cycle: "Yearly", due: "Nov 3", color: "#F59E0B" },
-    { id: "4", name: "Gym — LA Fitness", amount: 45, cycle: "Monthly", due: "Aug 22", color: "#4F46E5" },
-    { id: "5", name: "Disney+", amount: 13.99, cycle: "Monthly", due: "Aug 28", color: "#1D4ED8" },
-    { id: "6", name: "iCloud 2TB", amount: 9.99, cycle: "Monthly", due: "Sep 1", color: "#6B7280" },
-  ],
-  passwords: [
     {
       id: "1",
-      label: "Home Wi‑Fi",
-      username: "491WD2-Family",
-      hint: "Router card in kitchen drawer",
-      color: "#4F46E5",
+      name: "Netflix",
+      password: "",
+      payerMemberId: "member-1",
+      color: "#EF4444",
     },
     {
       id: "2",
-      label: "Streaming PIN",
-      username: "Kids profile",
-      hint: "Ask parent for code",
-      color: "#EC4899",
+      name: "Spotify Family",
+      password: "",
+      payerMemberId: "member-2",
+      color: "#10B981",
     },
     {
       id: "3",
-      label: "School Portal",
-      username: "stella@school.edu",
-      hint: "Password manager entry",
-      color: "#D97706",
+      name: "Amazon Prime",
+      password: "",
+      payerMemberId: "member-1",
+      color: "#F59E0B",
     },
     {
       id: "4",
-      label: "Utilities account",
-      username: "hershel@home",
-      hint: "Shared vault — adults only",
-      color: "#059669",
+      name: "Disney+",
+      password: "",
+      payerMemberId: "member-3",
+      color: "#1D4ED8",
     },
   ],
 };
 
-function isCycle(v: unknown): v is VaultSubscription["cycle"] {
-  return v === "Monthly" || v === "Yearly" || v === "Quarterly";
-}
+const COLORS = ["#8B5CF6", "#EF4444", "#10B981", "#F59E0B", "#4F46E5", "#EC4899", "#1D4ED8"];
 
 function coerceVault(raw: unknown): HouseholdVault {
   if (!raw || typeof raw !== "object") {
     return structuredClone(DEFAULT_VAULT);
   }
-  const obj = raw as Partial<HouseholdVault>;
-  const subscriptions = Array.isArray(obj.subscriptions)
-    ? obj.subscriptions
-        .filter((s) => s && typeof s === "object")
-        .map((s, i) => {
-          const row = s as Partial<VaultSubscription>;
-          return {
-            id: typeof row.id === "string" ? row.id : `sub-${i}`,
-            name: typeof row.name === "string" ? row.name : "Subscription",
-            amount: typeof row.amount === "number" ? row.amount : 0,
-            cycle: isCycle(row.cycle) ? row.cycle : "Monthly",
-            due: typeof row.due === "string" ? row.due : "Soon",
-            color: typeof row.color === "string" ? row.color : "#8B5CF6",
-          } satisfies VaultSubscription;
-        })
-    : structuredClone(DEFAULT_VAULT.subscriptions);
+  const obj = raw as Record<string, unknown>;
+  const rows = Array.isArray(obj.subscriptions) ? obj.subscriptions : [];
 
-  const passwords = Array.isArray(obj.passwords)
-    ? obj.passwords
-        .filter((p) => p && typeof p === "object")
-        .map((p, i) => {
-          const row = p as Partial<VaultPassword>;
-          return {
-            id: typeof row.id === "string" ? row.id : `pw-${i}`,
-            label: typeof row.label === "string" ? row.label : "Login",
-            username: typeof row.username === "string" ? row.username : "",
-            hint: typeof row.hint === "string" ? row.hint : "",
-            color: typeof row.color === "string" ? row.color : "#8B5CF6",
-          } satisfies VaultPassword;
-        })
-    : structuredClone(DEFAULT_VAULT.passwords);
+  if (rows.length === 0) {
+    return structuredClone(DEFAULT_VAULT);
+  }
 
-  return { version: 1, subscriptions, passwords };
+  const subscriptions = rows
+    .filter((s) => s && typeof s === "object")
+    .map((s, i) => {
+      const row = s as Record<string, unknown>;
+      const legacyHint =
+        typeof row.hint === "string"
+          ? row.hint
+          : typeof row.username === "string"
+            ? row.username
+            : "";
+      const password =
+        typeof row.password === "string"
+          ? row.password
+          : legacyHint;
+      return {
+        id: typeof row.id === "string" ? row.id : `sub-${i}`,
+        name: typeof row.name === "string" ? row.name : "Subscription",
+        password,
+        payerMemberId:
+          typeof row.payerMemberId === "string" ? row.payerMemberId : "",
+        color: typeof row.color === "string" ? row.color : COLORS[i % COLORS.length]!,
+      } satisfies VaultSubscription;
+    });
+
+  return { version: 2, subscriptions };
 }
 
 export function readHouseholdVault(): HouseholdVault {
@@ -142,31 +123,37 @@ export function writeHouseholdVault(vault: HouseholdVault): void {
 
 export function addVaultSubscription(
   vault: HouseholdVault,
-  input: { name: string; amount: number; cycle?: VaultSubscription["cycle"] },
+  input: { name: string; password?: string; payerMemberId?: string },
 ): HouseholdVault {
-  const colors = ["#8B5CF6", "#EF4444", "#10B981", "#F59E0B", "#4F46E5", "#EC4899"];
   const next: VaultSubscription = {
     id: `sub-${Date.now()}`,
     name: input.name.trim(),
-    amount: input.amount,
-    cycle: input.cycle ?? "Monthly",
-    due: "Soon",
-    color: colors[vault.subscriptions.length % colors.length]!,
+    password: (input.password ?? "").trim(),
+    payerMemberId: input.payerMemberId ?? "",
+    color: COLORS[vault.subscriptions.length % COLORS.length]!,
   };
   return { ...vault, subscriptions: [next, ...vault.subscriptions] };
 }
 
-export function addVaultPassword(
+export function updateVaultSubscription(
   vault: HouseholdVault,
-  input: { label: string; username: string; hint: string },
+  id: string,
+  patch: Partial<Pick<VaultSubscription, "name" | "password" | "payerMemberId">>,
 ): HouseholdVault {
-  const colors = ["#4F46E5", "#EC4899", "#D97706", "#059669", "#8B5CF6"];
-  const next: VaultPassword = {
-    id: `pw-${Date.now()}`,
-    label: input.label.trim(),
-    username: input.username.trim(),
-    hint: input.hint.trim() || "Stored on this device",
-    color: colors[vault.passwords.length % colors.length]!,
+  return {
+    ...vault,
+    subscriptions: vault.subscriptions.map((s) =>
+      s.id === id ? { ...s, ...patch } : s,
+    ),
   };
-  return { ...vault, passwords: [next, ...vault.passwords] };
+}
+
+export function deleteVaultSubscription(
+  vault: HouseholdVault,
+  id: string,
+): HouseholdVault {
+  return {
+    ...vault,
+    subscriptions: vault.subscriptions.filter((s) => s.id !== id),
+  };
 }
