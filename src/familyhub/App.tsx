@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users,
+  Users, Cloud, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
   Monitor, Tablet,
@@ -290,18 +290,18 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
       className="flex h-full flex-col flex-shrink-0 overflow-hidden border-r border-black/[0.06] bg-white transition-all duration-300"
       style={{ width: collapsed ? '64px' : '240px' }}
     >
-      {/* Brand */}
+      {/* Brand — Make shell: product name first, household as subtitle */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-black/[0.06]">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-600/25">
           <Home size={16} className="text-white" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-semibold text-stone-900 text-sm leading-tight truncate">{householdName}</div>
-            <div className="text-xs text-stone-400 leading-tight">Household Command</div>
+            <div className="font-semibold text-stone-900 text-sm leading-tight tracking-tight">FamilyHub</div>
+            <div className="text-xs text-stone-400 leading-tight truncate">{householdName}</div>
           </div>
         )}
-        <button onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0">
+        <button onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0" aria-label="Toggle sidebar">
           <Menu size={16} />
         </button>
       </div>
@@ -446,6 +446,28 @@ function Clock() {
   );
 }
 
+/** Make Home weather strip — static ambiance until a live weather source is wired. */
+function WeatherStrip() {
+  return (
+    <div className="flex items-center gap-5 flex-wrap">
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+          <Cloud size={18} className="text-amber-600" />
+        </div>
+        <div>
+          <div className="font-semibold text-stone-900 text-lg leading-none">74°F</div>
+          <div className="text-xs text-stone-500">Partly cloudy</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-stone-500">
+        <span className="flex items-center gap-1"><Droplets size={12} className="text-sky-400" /> 55%</span>
+        <span className="flex items-center gap-1"><Wind size={12} className="text-stone-400" /> 8 mph</span>
+        <span className="flex items-center gap-1"><span className="text-stone-400">H</span> 79° <span className="text-stone-400 ml-1">L</span> 62°</span>
+      </div>
+    </div>
+  );
+}
+
 function todayIsoLocal(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -490,10 +512,13 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   const activeName = FAMILY_MEMBERS.find(m => m.id === activeMemberId)?.name;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header: clock + live today summary */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <Clock />
+    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-[fhFadeIn_280ms_ease-out]">
+      {/* Header: Make clock + weather, then live household chips */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <Clock />
+          <WeatherStrip />
+        </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 font-medium">
             {todayChores.length} chores today
@@ -2614,14 +2639,24 @@ export default function App() {
   };
 
   const shell = (
-    <div className="flex h-full min-h-0 overflow-hidden bg-[#F8F6F2]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div
+      className="flex h-full min-h-0 overflow-hidden"
+      style={{
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        background:
+          'radial-gradient(900px 420px at 8% -8%, rgba(79,70,229,0.07), transparent 55%), radial-gradient(700px 360px at 96% 0%, rgba(245,158,11,0.06), transparent 50%), #F8F6F2',
+      }}
+    >
       <Sidebar
         current={view}
         onChange={setView}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((p) => !p)}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
+      <main
+        key={view}
+        className="familyhub-shell-main min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200"
+      >
         {renderView()}
       </main>
 
