@@ -121,7 +121,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: "localhost",
+    // Bind all interfaces so Cloud Agent / LAN previews can reach the app.
+    host: "0.0.0.0",
     watch: {
       ignored: ["**/vendor/**", "**/node_modules/**"],
     },
@@ -129,6 +130,7 @@ export default defineConfig({
   preview: {
     port: 4173,
     strictPort: true,
-    host: "localhost",
+    host: "0.0.0.0",
   },
 });
+
