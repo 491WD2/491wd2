@@ -1,182 +1,82 @@
+@import "./default_shadcn_theme.css";
+
+/**
+ * FamilyHub brand overlays on the Figma Make / shadcn theme.
+ * Base tokens come from `default_shadcn_theme.css` (Make export).
+ * Keep household-friendly warm surfaces + indigo primary.
+ */
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 16px;
-  --font-family: 'DM Sans', system-ui, sans-serif;
-  --background: #F8F6F2;
-  --foreground: #1C1917;
-  --card: #FFFFFF;
-  --card-foreground: #1C1917;
-  --popover: #FFFFFF;
-  --popover-foreground: #1C1917;
-  --primary: #4F46E5;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F0EDE8;
-  --secondary-foreground: #1C1917;
-  --muted: #EAE7E1;
-  --muted-foreground: #78716C;
-  --accent: #EEF2FF;
-  --accent-foreground: #4F46E5;
-  --destructive: #EF4444;
+  --font-family: "DM Sans", system-ui, sans-serif;
+  --background: #f8f6f2;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ede8;
+  --secondary-foreground: #1c1917;
+  --muted: #eae7e1;
+  --muted-foreground: #78716c;
+  --accent: #eef2ff;
+  --accent-foreground: #4f46e5;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: rgba(28, 25, 23, 0.08);
   --input: transparent;
-  --input-background: #F0EDE8;
-  --switch-background: #C5BFB8;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: #4F46E5;
-  --chart-1: #4F46E5;
-  --chart-2: #10B981;
-  --chart-3: #F59E0B;
-  --chart-4: #EC4899;
-  --chart-5: #8B5CF6;
+  --input-background: #f0ede8;
+  --switch-background: #c5bfb8;
+  --ring: #4f46e5;
+  --chart-1: #4f46e5;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ec4899;
+  --chart-5: #8b5cf6;
   --radius: 0.875rem;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #1C1917;
-  --sidebar-primary: #4F46E5;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F0EDE8;
-  --sidebar-accent-foreground: #4F46E5;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0ede8;
+  --sidebar-accent-foreground: #4f46e5;
   --sidebar-border: rgba(28, 25, 23, 0.08);
-  --sidebar-ring: #4F46E5;
+  --sidebar-ring: #4f46e5;
 }
 
 .dark {
-  --background: #1A1917;
-  --foreground: #F5F3EF;
+  --background: #1a1917;
+  --foreground: #f5f3ef;
   --card: #242220;
-  --card-foreground: #F5F3EF;
+  --card-foreground: #f5f3ef;
   --popover: #242220;
-  --popover-foreground: #F5F3EF;
-  --primary: #818CF8;
-  --primary-foreground: #1A1917;
-  --secondary: #2D2B28;
-  --secondary-foreground: #F5F3EF;
-  --muted: #2D2B28;
-  --muted-foreground: #A8A29E;
-  --accent: #2D2B28;
-  --accent-foreground: #818CF8;
-  --destructive: #F87171;
-  --destructive-foreground: #1A1917;
+  --popover-foreground: #f5f3ef;
+  --primary: #818cf8;
+  --primary-foreground: #1a1917;
+  --secondary: #2d2b28;
+  --secondary-foreground: #f5f3ef;
+  --muted: #2d2b28;
+  --muted-foreground: #a8a29e;
+  --accent: #2d2b28;
+  --accent-foreground: #818cf8;
+  --destructive: #f87171;
+  --destructive-foreground: #1a1917;
   --border: rgba(245, 243, 239, 0.08);
-  --input: #2D2B28;
-  --ring: #818CF8;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: #818CF8;
-  --chart-2: #34D399;
-  --chart-3: #FCD34D;
-  --chart-4: #F472B6;
-  --chart-5: #A78BFA;
-  --sidebar: #1E1C1A;
-  --sidebar-foreground: #F5F3EF;
-  --sidebar-primary: #818CF8;
-  --sidebar-primary-foreground: #1A1917;
-  --sidebar-accent: #2D2B28;
-  --sidebar-accent-foreground: #818CF8;
+  --input: #2d2b28;
+  --ring: #818cf8;
+  --chart-1: #818cf8;
+  --chart-2: #34d399;
+  --chart-3: #fcd34d;
+  --chart-4: #f472b6;
+  --chart-5: #a78bfa;
+  --sidebar: #1e1c1a;
+  --sidebar-foreground: #f5f3ef;
+  --sidebar-primary: #818cf8;
+  --sidebar-primary-foreground: #1a1917;
+  --sidebar-accent: #2d2b28;
+  --sidebar-accent-foreground: #818cf8;
   --sidebar-border: rgba(245, 243, 239, 0.08);
-  --sidebar-ring: #818CF8;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
-
-  html {
-    font-size: var(--font-size);
-  }
-
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
-  }
+  --sidebar-ring: #818cf8;
 }
