@@ -4,6 +4,7 @@ import {
   CURRENT_DATA_VERSION,
   createCanonicalHouseholdFamilyMembers,
   createDefaultFamilyData,
+  createSeedPlannerEvents,
   initialFamilyData,
   memberColorThemes,
   moduleKeys,
@@ -176,11 +177,13 @@ export function normalizeFamilyData(value: unknown): FamilyData {
       [],
       (item) => normalizeShoppingItem(item, adminSettings),
     ),
-    planner: normalizeArray(
-      value.planner,
-      [],
-      (event) => normalizePlannerEvent(event, adminSettings),
-    ).map((event) => normalizePlannerAssignment(event, familyMembers)),
+    planner: refreshStaleSeedPlannerDates(
+      normalizeArray(
+        value.planner,
+        [],
+        (event) => normalizePlannerEvent(event, adminSettings),
+      ).map((event) => normalizePlannerAssignment(event, familyMembers)),
+    ),
     calendarLinks: normalizeCalendarLinks(value.calendarLinks),
     docs: mergeDefaultEmergencyDocs(
       normalizeArray(value.docs, [], (doc) =>
@@ -667,6 +670,29 @@ const DEFAULT_EMERGENCY_DOC_IDS = [
   "doc-emergency-gobag",
   "doc-emergency-water",
 ] as const;
+
+/**
+ * Re-anchor bundled seed planner rows (plan-1…3) when they still sit on old May 2026
+ * demo dates so Calendar/Home show a useful current week.
+ */
+function refreshStaleSeedPlannerDates(events: PlannerEvent[]): PlannerEvent[] {
+  const seeds = createSeedPlannerEvents();
+  const byId = new Map(seeds.map((e) => [e.id, e]));
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return events.map((evt) => {
+    const seed = byId.get(evt.id);
+    if (!seed) return evt;
+    const parsed = new Date(`${evt.date}T12:00:00`);
+    if (!Number.isFinite(parsed.getTime())) return { ...evt, date: seed.date };
+    // Older than ~2 weeks → treat as stale seed and refresh.
+    const ageDays = (today.getTime() - parsed.getTime()) / 86400000;
+    if (ageDays > 14) {
+      return { ...evt, date: seed.date, time: evt.time || seed.time };
+    }
+    return evt;
+  });
+}
 
 /** Ensure preparedness notes exist for households that predate the FamilyHub emergency wiring. */
 function mergeDefaultEmergencyDocs(existing: DocItem[]): DocItem[] {

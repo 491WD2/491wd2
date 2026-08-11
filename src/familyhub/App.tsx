@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users, Wind, Droplets,
+  Users,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
   Monitor, Tablet,
@@ -99,7 +99,7 @@ type HubContextValue = {
   addSubscription: (name: string, amount: number) => void;
   addPassword: (label: string, username: string, hint: string) => void;
   addChore: (title: string, memberId?: string) => void;
-  addEvent: (title: string, memberId?: string) => void;
+  addEvent: (input: { title: string; date?: string; time?: string; memberId?: string }) => void;
   setActiveMember: (memberId: string) => void;
   addFamilyMember: (name: string) => void;
   updateMemberMedical: (memberId: string, field: 'allergies' | 'emergencyContact', value: string) => void;
@@ -440,25 +440,19 @@ function Clock() {
   );
 }
 
-function WeatherStrip() {
-  return (
-    <div className="flex items-center gap-5 flex-wrap">
-      <div className="flex items-center gap-2">
-        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
-          <span className="text-lg">⛅</span>
-        </div>
-        <div>
-          <div className="font-semibold text-stone-900 text-lg leading-none">74°F</div>
-          <div className="text-xs text-stone-500">Partly cloudy</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 text-xs text-stone-500">
-        <span className="flex items-center gap-1"><Droplets size={12} className="text-sky-400" /> 55%</span>
-        <span className="flex items-center gap-1"><Wind size={12} className="text-stone-400" /> 8 mph</span>
-        <span className="flex items-center gap-1"><span className="text-stone-400">H</span> 79° <span className="text-stone-400 ml-1">L</span> 62°</span>
-      </div>
-    </div>
-  );
+function todayIsoLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function toIsoLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, onToggleChore }: {
@@ -469,38 +463,108 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   chores: HubChore[];
   onToggleChore: (id: string) => void;
 }) {
-  const { members: FAMILY_MEMBERS, messages: MESSAGES, events: EVENTS } = useHub();
+  const {
+    members: FAMILY_MEMBERS,
+    messages: MESSAGES,
+    events: EVENTS,
+    pets,
+    activeMemberId,
+    setActiveMember,
+  } = useHub();
   const unchecked = shoppingItems.filter(i => !i.checked);
   const alerts = pantryItems.filter(i => i.status === 'out' || i.status === 'low');
   const outCount = pantryItems.filter(i => i.status === 'out').length;
   const lowCount = pantryItems.filter(i => i.status === 'low').length;
+  const todayIso = todayIsoLocal();
   const todayChores = chores.filter(c => c.due === 'Today');
+  const todayEvents = EVENTS.filter(e => e.dateIso === todayIso);
+  const petAlerts = pets.filter(p => p.fleaStatus === 'dueToday' || p.fleaStatus === 'overdue' || p.fleaStatus === 'dueSoon');
+  const upcomingEvents = EVENTS.filter(e => e.dateIso >= todayIso).slice(0, 4);
   const unreadMessages = MESSAGES.filter(m => !m.read);
+  const activeName = FAMILY_MEMBERS.find(m => m.id === activeMemberId)?.name;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header: clock + weather */}
+      {/* Header: clock + live today summary */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <Clock />
-        <WeatherStrip />
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 font-medium">
+            {todayChores.length} chores today
+          </span>
+          <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">
+            {todayEvents.length} events today
+          </span>
+          {petAlerts.length > 0 && (
+            <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 font-medium">
+              {petAlerts.length} pet med alerts
+            </span>
+          )}
+          {activeName && (
+            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-medium">
+              Signed in as {activeName}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Family member buttons */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-3">Who's checking in?</div>
         <div className="flex gap-3 flex-wrap">
-          {FAMILY_MEMBERS.map(m => (
-            <button
-              key={m.id}
-              className="flex items-center gap-2.5 px-4 py-2.5 rounded-full border transition-all duration-150 hover:shadow-md active:scale-95"
-              style={{ borderColor: m.color + '30', backgroundColor: m.bg }}
-            >
-              <MemberDot name={m.name} color={m.color} bg="transparent" size="sm" />
-              <span className="font-medium text-sm" style={{ color: m.color }}>{m.name}</span>
-            </button>
-          ))}
+          {FAMILY_MEMBERS.map(m => {
+            const active = m.id === activeMemberId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setActiveMember(m.id)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border transition-all duration-150 hover:shadow-md active:scale-95 ${
+                  active ? 'ring-2 ring-offset-1 ring-indigo-500' : ''
+                }`}
+                style={{ borderColor: m.color + '30', backgroundColor: m.bg }}
+              >
+                <MemberDot name={m.name} color={m.color} bg="transparent" size="sm" />
+                <span className="font-medium text-sm" style={{ color: m.color }}>{m.name}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {/* Today strip */}
+      {(todayEvents.length > 0 || petAlerts.length > 0) && (
+        <Card className="p-4">
+          <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-2">Today</div>
+          <div className="space-y-2">
+            {todayEvents.map((evt) => (
+              <button
+                key={evt.id}
+                type="button"
+                onClick={() => onNavigate('calendar')}
+                className="w-full flex items-center gap-3 text-left"
+              >
+                <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: evt.color }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
+                  <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
+                </div>
+              </button>
+            ))}
+            {petAlerts.map((pet) => (
+              <button
+                key={pet.id}
+                type="button"
+                onClick={() => onNavigate('pets')}
+                className="w-full flex items-center gap-3 text-left"
+              >
+                <PawPrint size={14} className="text-orange-500 flex-shrink-0" />
+                <div className="text-sm text-stone-700 truncate">{pet.name}: {pet.tasks[0]}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Quick Add */}
       <div className="grid grid-cols-2 gap-3">
@@ -678,7 +742,10 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
             <ChevronRight size={16} className="text-stone-300" />
           </div>
           <div className="space-y-2">
-            {EVENTS.slice(0, 4).map(evt => (
+            {upcomingEvents.length === 0 && (
+              <div className="text-sm text-stone-400">No upcoming events — add one on Calendar.</div>
+            )}
+            {upcomingEvents.map(evt => (
               <div key={evt.id} className="flex items-center gap-3">
                 <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: evt.color }} />
                 <div className="flex-1 min-w-0">
@@ -1245,53 +1312,113 @@ function CalendarView() {
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState('');
   const [assignee, setAssignee] = useState(FAMILY_MEMBERS[0]?.id || '');
+  const [eventDate, setEventDate] = useState(todayIsoLocal());
+  const [eventTime, setEventTime] = useState('17:00');
+  const [cursor, setCursor] = useState(() => {
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), 1);
+  });
+  const [selectedIso, setSelectedIso] = useState(todayIsoLocal());
 
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const todayIso = todayIsoLocal();
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const startOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startDay = startOfMonth.getDay();
-  const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthName = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const upcoming = EVENTS.filter((e) => e.dateIso >= todayIso).slice(0, 12);
+  const selectedEvents = EVENTS.filter((e) => e.dateIso === selectedIso);
 
   return (
     <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-stone-900">Calendar</h1>
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600">‹</button>
+          <button
+            type="button"
+            onClick={() => setCursor(new Date(year, month - 1, 1))}
+            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
+          >
+            ‹
+          </button>
           <span className="text-sm font-medium text-stone-900 px-2">{monthName}</span>
-          <button className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600">›</button>
+          <button
+            type="button"
+            onClick={() => setCursor(new Date(year, month + 1, 1))}
+            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
+          >
+            ›
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Mini calendar */}
         <div className="lg:col-span-2">
           <Card className="p-5">
             <div className="grid grid-cols-7 mb-2">
-              {days.map(d => <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>)}
+              {days.map((d) => (
+                <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>
+              ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: startDay }).map((_, i) => <div key={`e-${i}`} />)}
+              {Array.from({ length: startDay }).map((_, i) => (
+                <div key={`e-${i}`} />
+              ))}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1;
-                const isToday = day === today.getDate();
-                const hasEvent = EVENTS.some(e => e.date === 'Today' && isToday);
+                const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = iso === todayIso;
+                const isSelected = iso === selectedIso;
+                const dayEvents = EVENTS.filter((e) => e.dateIso === iso);
                 return (
-                  <button key={day}
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      setSelectedIso(iso);
+                      setEventDate(iso);
+                    }}
                     className={`aspect-square flex flex-col items-center justify-center rounded-xl text-sm transition-all
-                      ${isToday ? 'bg-indigo-600 text-white font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
+                      ${isToday ? 'bg-indigo-600 text-white font-semibold' : isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
                   >
                     {day}
-                    {hasEvent && <div className={`w-1 h-1 rounded-full mt-0.5 ${isToday ? 'bg-white' : 'bg-amber-500'}`} />}
+                    {dayEvents.length > 0 && (
+                      <div className="flex gap-0.5 mt-0.5">
+                        {dayEvents.slice(0, 3).map((e) => (
+                          <div
+                            key={e.id}
+                            className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : ''}`}
+                            style={isToday ? undefined : { backgroundColor: e.color }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
           </Card>
+          {selectedEvents.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                {selectedIso === todayIso ? 'Today' : selectedIso}
+              </div>
+              {selectedEvents.map((evt) => (
+                <Card key={evt.id} className="p-3 flex items-center gap-3">
+                  <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
+                    <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Events list */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-stone-900">Upcoming</h3>
@@ -1305,12 +1432,21 @@ function CalendarView() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!draft.trim()) return;
-                addEvent(draft, assignee || undefined);
+                addEvent({
+                  title: draft,
+                  date: eventDate,
+                  time: eventTime,
+                  memberId: assignee || undefined,
+                });
                 setDraft('');
                 setShowAdd(false);
               }}
             >
               <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Event title" className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+              <div className="flex gap-2">
+                <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+                <input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="w-28 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+              </div>
               <div className="flex gap-2">
                 <select value={assignee} onChange={(e) => setAssignee(e.target.value)} className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm">
                   <option value="">Family</option>
@@ -1320,15 +1456,18 @@ function CalendarView() {
               </div>
             </form>
           )}
-          {EVENTS.map(evt => (
-            <Card key={evt.id} className="p-4">
+          {upcoming.length === 0 && (
+            <Card className="p-4 text-sm text-stone-500">No upcoming events yet.</Card>
+          )}
+          {upcoming.map((evt) => (
+            <Card key={evt.id} className="p-4" onClick={() => setSelectedIso(evt.dateIso)}>
               <div className="flex items-start gap-3">
                 <div className="w-1 h-full min-h-[48px] rounded-full flex-shrink-0" style={{ backgroundColor: evt.color }} />
                 <div className="flex-1">
                   <div className="font-medium text-stone-900 text-sm">{evt.title}</div>
                   <div className="text-xs text-stone-500 mt-1">{evt.date} · {evt.time}</div>
                   <div className="mt-2">
-                    {FAMILY_MEMBERS.filter(m => m.name === evt.who || evt.who === 'Family').map(m => (
+                    {FAMILY_MEMBERS.filter((m) => m.name === evt.who).map((m) => (
                       <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />
                     ))}
                   </div>
@@ -1890,44 +2029,56 @@ function SubscriptionsView() {
 
 function PlannerView() {
   const { members: FAMILY_MEMBERS, events } = useHub();
-  const days = Array.from({ length: 5 }, (_, i) => {
+  const todayIso = todayIsoLocal();
+  // Mon–Sun of the current week
+  const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1 + i); // Mon-Fri of current week
+    const day = d.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + mondayOffset + i);
     return d;
   });
-  const dayLabels = days.map(d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-  const todayKey = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-stone-900">Weekly Planner</h1>
-        <span className="text-sm text-stone-500">{dayLabels[0]} – {dayLabels[dayLabels.length - 1]}</span>
+        <span className="text-sm text-stone-500">
+          {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
+          {days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-        {dayLabels.map((day, index) => {
-          const dateObj = days[index];
+      <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+        {days.map((dateObj) => {
+          const iso = toIsoLocal(dateObj);
+          const label = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
           const tasks = events
-            .filter(e => (e.date === 'Today' && day === todayKey) || e.date.includes(String(dateObj.getDate())))
-            .map(e => ({ text: `${e.title} ${e.time}`, member: e.who, done: false }));
-          const isToday = day === todayKey;
+            .filter((e) => e.dateIso === iso)
+            .map((e) => ({ text: `${e.title} · ${e.time}`, member: e.who, color: e.color }));
+          const isToday = iso === todayIso;
           return (
-            <div key={day} className={`rounded-2xl border p-4 ${isToday ? 'border-indigo-200 bg-indigo-50' : 'bg-white border-stone-100'}`}>
+            <div
+              key={iso}
+              className={`rounded-2xl border p-4 ${isToday ? 'border-indigo-200 bg-indigo-50' : 'bg-white border-stone-100'}`}
+            >
               <div className={`text-xs font-semibold mb-3 ${isToday ? 'text-indigo-600' : 'text-stone-400'}`}>
-                {day.split(' ').slice(0, 2).join(' ')}
+                {label.split(',')[0]}
                 {isToday && <span className="ml-1.5 text-white bg-indigo-600 px-1.5 py-0.5 rounded text-[10px]">Today</span>}
               </div>
               <div className="space-y-2">
                 {tasks.map((task, i) => {
-                  const member = FAMILY_MEMBERS.find(m => m.name === task.member);
+                  const member = FAMILY_MEMBERS.find((m) => m.name === task.member);
                   return (
                     <div key={i} className="text-xs text-stone-700 leading-snug flex gap-1.5">
-                      {member && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: member.color }} />}
+                      <div
+                        className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
+                        style={{ backgroundColor: member?.color || task.color }}
+                      />
                       {task.text}
                     </div>
                   );
                 })}
-                {tasks.length === 0 && <div className="text-xs text-stone-300">No tasks</div>}
+                {tasks.length === 0 && <div className="text-xs text-stone-300">No events</div>}
               </div>
             </div>
           );
@@ -2339,7 +2490,7 @@ export default function App() {
         setVaultTick((n) => n + 1);
       },
       addChore: (title, memberId) => setData((prev) => addChoreTask(prev, title, memberId)),
-      addEvent: (title, memberId) => setData((prev) => addPlannerEvent(prev, { title, memberId })),
+      addEvent: (input) => setData((prev) => addPlannerEvent(prev, input)),
       setActiveMember: (memberId) => setData((prev) => bridgeSetActiveMember(prev, memberId)),
       addFamilyMember: (name) => setData((prev) => bridgeAddMember(prev, name)),
       updateMemberMedical: (memberId, field, value) =>

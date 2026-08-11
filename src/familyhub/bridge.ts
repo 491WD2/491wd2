@@ -70,7 +70,10 @@ export type HubChore = {
 export type HubEvent = {
   id: string;
   title: string;
+  /** Display label (Today / Tomorrow / Aug 12). */
   date: string;
+  /** Canonical YYYY-MM-DD for calendar matching. */
+  dateIso: string;
   time: string;
   color: string;
   who: string;
@@ -264,17 +267,25 @@ export function mapHubChores(data: FamilyData): HubChore[] {
 
 export function mapHubEvents(data: FamilyData): HubEvent[] {
   const members = mapHubMembers(data);
-  return data.planner.slice(0, 12).map((evt, index) => {
-    const member = members.find((m) => m.id === evt.assignedMemberId);
-    return {
-      id: evt.id,
-      title: evt.title,
-      date: formatDueLabel(evt.date),
-      time: evt.time || evt.startTime || "All day",
-      color: member?.color || ["#4F46E5", "#DB2777", "#D97706", "#059669"][index % 4]!,
-      who: evt.assignedPerson || member?.name || "Family",
-    };
-  });
+  return [...data.planner]
+    .filter((evt) => Boolean(evt.date))
+    .sort((a, b) => {
+      const byDate = a.date.localeCompare(b.date);
+      if (byDate !== 0) return byDate;
+      return (a.time || "").localeCompare(b.time || "");
+    })
+    .map((evt, index) => {
+      const member = members.find((m) => m.id === evt.assignedMemberId);
+      return {
+        id: evt.id,
+        title: evt.title,
+        date: formatDueLabel(evt.date),
+        dateIso: evt.date,
+        time: evt.time || evt.startTime || "All day",
+        color: member?.color || ["#4F46E5", "#DB2777", "#D97706", "#059669"][index % 4]!,
+        who: evt.assignedPerson || member?.name || "Family",
+      };
+    });
 }
 
 export function mapHubMessages(data: FamilyData): HubMessage[] {
@@ -500,13 +511,13 @@ export function addPlannerEvent(
 ): FamilyData {
   const trimmed = input.title.trim();
   if (!trimmed) return data;
-  const date = input.date || new Date().toISOString().slice(0, 10);
+  const date = input.date?.trim() || new Date().toISOString().slice(0, 10);
   const member = data.familyMembers.find((m) => m.id === input.memberId);
   const evt = {
     id: `plan-${Date.now()}`,
     title: trimmed,
     date,
-    time: input.time || "17:00",
+    time: input.time?.trim() || "17:00",
     category: "Family" as const,
     assignedMemberId: input.memberId || "",
     assignedPerson: member ? getMemberFullName(member) : "Family",
