@@ -1,17 +1,19 @@
 # Attached Figma Style Audit
 
-**Reference file:** `491WD2_491wd2-app.zip` (also uploaded as `theme.css` / `tailwind.css`)
+**Visual source of truth:** [https://floor-double-99844517.figma.site/](https://floor-double-99844517.figma.site/) (published FamilyHub Make site — colorful per-nav active pills, indigo brand mark, Fraunces clock).
+
+**Reference code:** Make `App.tsx` from `491WD2_491wd2-app.zip` (layouts for Home / Tools pages). Do **not** use the mauve salon POS `Sidebar.tsx` leftovers as chrome.
 
 ## Visual style summary
 
-Clean, soft, airy premium dashboard chrome from a salon/admin Community template:
+Clean, soft, airy FamilyHub household dashboard (floor-double):
 
-- Soft off-white app canvas (`#F8F7F5`)
-- White left sidebar (~256px) with mauve active state
+- Soft canvas (`#F8F6F2` / stone)
+- White left sidebar (~256px) with **colorful per-nav active pills** (not mauve)
 - Large rounded white cards, subtle borders, soft shadows
-- Mauve / lavender accent system (`#8B5A7C`, `#F5E6F1`)
-- Warm cream alert panels (`#FFF4E8`)
-- Inter / DM Sans UI typography (Fraunces display reduced)
+- Section accents: indigo Home, pink Messages, emerald Shopping, lime Pantry, etc.
+- Fraunces display clock + weather strip on Home
+- Green / olive quick-add CTAs (`#10B981` / `#6D9C0E`)
 
 ## Colors used / inferred
 

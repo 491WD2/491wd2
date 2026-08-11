@@ -8,7 +8,7 @@ import {
   Users, List, Image, Layers, RefreshCw, Cloud, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
-  Monitor, Tablet,
+  Monitor, Tablet, Camera, Star,
 } from 'lucide-react';
 import type { Project } from '../data/familyData';
 import { useFamilyData } from '../hooks/useFamilyData';
@@ -247,10 +247,6 @@ const TOOLS_NAV: NavItem[] = [
 
 const SYSTEM_NAV: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings, color: '#64748B' },
-  { id: 'family', label: 'Family Members', icon: Users, color: '#14B8A6' },
-  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#EC4899' },
-  { id: 'docs', label: 'Docs & Help', icon: FileText, color: '#06B6D4' },
-  { id: 'wall', label: 'Wall display', icon: Monitor, color: '#64748B' },
 ];
 
 function Sidebar({ current, onChange, collapsed, onToggle }: {
@@ -264,10 +260,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
     return item;
   });
   const toolsNav = TOOLS_NAV;
-  const systemNav = SYSTEM_NAV.map((item) => {
-    if (item.id === 'notifications' && badges.notifications > 0) return { ...item, badge: badges.notifications };
-    return item;
-  });
+  const systemNav = SYSTEM_NAV;
 
   function NavLink({ item }: { item: NavItem }) {
     const active = current === item.id;
@@ -501,7 +494,6 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
     members: FAMILY_MEMBERS,
     messages: MESSAGES,
     events: EVENTS,
-    pets,
     activeMemberId,
     setActiveMember,
   } = useHub();
@@ -511,8 +503,6 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   const lowCount = pantryItems.filter(i => i.status === 'low').length;
   const todayIso = todayIsoLocal();
   const todayChores = chores.filter(c => c.due === 'Today');
-  const todayEvents = EVENTS.filter(e => e.dateIso === todayIso);
-  const petAlerts = pets.filter(p => p.fleaStatus === 'dueToday' || p.fleaStatus === 'overdue' || p.fleaStatus === 'dueSoon');
   const upcomingEvents = EVENTS.filter(e => e.dateIso >= todayIso).slice(0, 4);
   const unreadMessages = MESSAGES.filter(m => !m.read);
 
@@ -545,40 +535,6 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
           })}
         </div>
       </div>
-
-      {/* Today strip */}
-      {(todayEvents.length > 0 || petAlerts.length > 0) && (
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-2">Today</div>
-          <div className="space-y-2">
-            {todayEvents.map((evt) => (
-              <button
-                key={evt.id}
-                type="button"
-                onClick={() => onNavigate('calendar')}
-                className="w-full flex items-center gap-3 text-left"
-              >
-                <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: evt.color }} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
-                  <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
-                </div>
-              </button>
-            ))}
-            {petAlerts.map((pet) => (
-              <button
-                key={pet.id}
-                type="button"
-                onClick={() => onNavigate('pets')}
-                className="w-full flex items-center gap-3 text-left"
-              >
-                <PawPrint size={14} className="text-orange-500 flex-shrink-0" />
-                <div className="text-sm text-stone-700 truncate">{pet.name}: {pet.tasks[0]}</div>
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <div className="grid grid-cols-2 gap-3">
         <button
@@ -1415,23 +1371,23 @@ function CalendarView() {
   const todayEventsList = EVENTS.filter((e) => e.dateIso === todayIso);
 
   return (
-    <div className="figma-page max-w-6xl">
-      <div className="figma-page-header">
+    <div className="p-6 max-w-4xl">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="figma-page-title">{viewMode === 'list' ? "Today's Schedule" : 'Calendar'}</h1>
-          <p className="figma-page-subtitle">{monthName} · family schedule</p>
+          <h1 className="text-xl font-semibold text-stone-900">{viewMode === 'list' ? "Today's Schedule" : 'Calendar'}</h1>
+          <p className="text-sm text-stone-500 mt-0.5">{monthName} · family schedule</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="figma-segmented">
-            <button type="button" className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')} title="List"><List size={18} /></button>
-            <button type="button" className={viewMode === 'month' ? 'is-active' : ''} onClick={() => setViewMode('month')} title="Month"><Calendar size={18} /></button>
+          <div className="flex gap-1 bg-white border border-stone-200 p-1 rounded-xl">
+            <button type="button" className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-stone-500 hover:bg-stone-50'}`} onClick={() => setViewMode('list')} title="List"><List size={18} /></button>
+            <button type="button" className={`p-2 rounded-lg ${viewMode === 'month' ? 'bg-indigo-50 text-indigo-700' : 'text-stone-500 hover:bg-stone-50'}`} onClick={() => setViewMode('month')} title="Month"><Calendar size={18} /></button>
           </div>
-          <div className="figma-segmented">
+          <div className="flex gap-1 bg-white border border-stone-200 p-1 rounded-xl">
             <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
-            <button type="button" className="is-active px-3">{monthName}</button>
+            <button type="button" className="px-3 py-1.5 rounded-lg text-sm font-medium text-stone-900">{monthName}</button>
             <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
           </div>
-          <button type="button" onClick={() => setShowAdd((v) => !v)} className="figma-button-primary"><Plus size={16} /> Add event</button>
+          <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"><Plus size={16} /> Add event</button>
         </div>
       </div>
 
@@ -1440,19 +1396,19 @@ function CalendarView() {
           {viewMode === 'list' ? (
             <div className="space-y-3">
               {(todayEventsList.length ? todayEventsList : upcoming.slice(0, 6)).map((evt) => (
-                <div key={evt.id} className="figma-list-row">
-                  <div className="figma-icon-tile !w-12 !h-12">
+                <div key={evt.id} className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-stone-100">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
                     <Calendar size={20} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[var(--text-main)] truncate">{evt.title}</div>
-                    <div className="text-sm text-[var(--text-muted)] mt-0.5">{evt.date} · {evt.time} · {evt.who}</div>
+                    <div className="font-semibold text-stone-900 truncate">{evt.title}</div>
+                    <div className="text-sm text-stone-500 mt-0.5">{evt.date} · {evt.time} · {evt.who}</div>
                   </div>
-                  <span className="figma-chip figma-chip-mauve">Household</span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Household</span>
                 </div>
               ))}
               {todayEventsList.length === 0 && upcoming.length === 0 && (
-                <div className="figma-empty">No family events scheduled yet.</div>
+                <div className="p-8 text-center text-sm text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">No family events scheduled yet.</div>
               )}
             </div>
           ) : (
@@ -1460,7 +1416,7 @@ function CalendarView() {
               <Card className="p-6">
                 <div className="grid grid-cols-7 mb-2">
                   {days.map((d) => (
-                    <div key={d} className="text-center text-xs font-semibold text-[var(--text-muted)] py-1">{d}</div>
+                    <div key={d} className="text-center text-xs font-semibold text-stone-500 py-1">{d}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
@@ -1482,7 +1438,7 @@ function CalendarView() {
                           setEventDate(iso);
                         }}
                         className={`aspect-square flex flex-col items-center justify-center rounded-2xl text-sm transition-all
-                          ${isToday ? 'figma-cal-today' : isSelected ? 'figma-cal-selected' : 'hover:bg-[#F9FAFB] text-[var(--text-soft)]'}`}
+                          ${isToday ? 'bg-indigo-600 text-white font-semibold' : isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
                       >
                         {day}
                         {dayEvents.length > 0 && (
@@ -1503,17 +1459,17 @@ function CalendarView() {
               </Card>
               {selectedEvents.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-stone-500">
                     {selectedIso === todayIso ? 'Today' : selectedIso}
                   </div>
                   {selectedEvents.map((evt) => (
                     <Card key={evt.id} className="p-4 flex items-center gap-3">
                       <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-[var(--text-main)] truncate">{evt.title}</div>
-                        <div className="text-xs text-[var(--text-muted)]">{evt.time} · {evt.who}</div>
+                        <div className="text-sm font-medium text-stone-900 truncate">{evt.title}</div>
+                        <div className="text-xs text-stone-500">{evt.time} · {evt.who}</div>
                       </div>
-                      <span className="figma-chip figma-chip-blue">Activity</span>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">Activity</span>
                     </Card>
                   ))}
                 </div>
@@ -1524,8 +1480,8 @@ function CalendarView() {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-[var(--text-main)]">Upcoming</h3>
-            <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1 text-xs text-[var(--accent-mauve)] font-medium">
+            <h3 className="font-semibold text-stone-900">Upcoming</h3>
+            <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
               <Plus size={12} /> Add event
             </button>
           </div>
@@ -1555,7 +1511,7 @@ function CalendarView() {
                   <option value="">Family</option>
                   {FAMILY_MEMBERS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
-                <button type="submit" className="figma-button-primary !py-2 !px-3 !rounded-xl">Save</button>
+                <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600">Save</button>
               </div>
             </form>
           )}
@@ -1595,14 +1551,14 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
   const upcoming = chores.filter(c => c.due !== 'Today');
 
   return (
-    <div className="figma-page max-w-3xl">
-      <div className="figma-page-header">
+    <div className="p-6 max-w-3xl">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="figma-page-title">Cleaning & Kitchen</h1>
-          <p className="figma-page-subtitle">Today and upcoming household chores</p>
+          <h1 className="text-xl font-semibold text-stone-900">Cleaning & Kitchen</h1>
+          <p className="text-sm text-stone-500 mt-0.5">Today and upcoming household chores</p>
         </div>
-        <button type="button" onClick={() => setShowAdd((v) => !v)} className="figma-button-primary">
-          <Plus size={16} /> Add Chore
+        <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600">
+          <Plus size={15} /> Add Chore
         </button>
       </div>
       {showAdd && (
@@ -1631,7 +1587,7 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
-          <button type="submit" className="figma-button-primary !py-2 !px-3">Save</button>
+          <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500">Save</button>
         </form>
       )}
 
@@ -1715,9 +1671,9 @@ function EmergencyView() {
   );
 
   return (
-    <div className="figma-page max-w-3xl">
-      <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
-        <h1 className="figma-page-title">Emergency Planning</h1>
+    <div className="p-6 max-w-3xl">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-xl font-semibold text-stone-900">Emergency Planning</h1>
         <button
           type="button"
           onClick={() => setShowAdd((v) => !v)}
@@ -2380,38 +2336,68 @@ function DocsView() {
 }
 
 
-// ── Collections (read-only FamilyData views; style-only shell) ────────────────
+// ── Collections (Make-site chrome; live FamilyData where available) ───────────
+
+const PROJECT_STATUS_COLORS: Record<string, string> = {
+  active: '#14B8A6',
+  planned: '#94a3b8',
+  waiting: '#F59E0B',
+  done: '#10B981',
+  archived: '#94a3b8',
+};
+
+function projectProgress(p: Project): number {
+  const milestones = p.milestones || [];
+  if (milestones.length === 0) {
+    if (p.status === 'done') return 100;
+    if (p.status === 'active') return 50;
+    if (p.status === 'waiting') return 25;
+    return 10;
+  }
+  const done = milestones.filter((m) => m.status === 'done').length;
+  return Math.round((done / milestones.length) * 100);
+}
 
 function ProjectsView() {
   const { projects } = useHub();
   return (
-    <div className="figma-page max-w-4xl">
-      <div className="figma-page-header">
-        <div>
-          <h1 className="figma-page-title">Projects</h1>
-          <p className="figma-page-subtitle">Household projects from your saved FamilyData</p>
-        </div>
+    <div className="p-6 max-w-3xl">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold text-stone-900">Projects</h1>
+        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 transition-colors">
+          <Plus size={15} /> New Project
+        </button>
       </div>
       {projects.length === 0 ? (
-        <div className="figma-empty">No projects yet — existing data is preserved when you add some.</div>
+        <div className="p-8 text-center text-sm text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+          No projects yet — existing FamilyData is preserved when you add some.
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {projects.map((p) => (
-            <div key={p.id} className="figma-card p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--text-main)]">{p.name || p.title}</h3>
-                  <p className="text-sm text-[var(--text-muted)] mt-1">{p.description || p.nextStep || 'Household project'}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {projects.map((proj) => {
+            const color = PROJECT_STATUS_COLORS[proj.status] || '#14B8A6';
+            const progress = projectProgress(proj);
+            const statusLabel = proj.status === 'active' ? 'In progress' : proj.status === 'planned' ? 'Planning' : proj.status === 'done' ? 'Done' : proj.status;
+            return (
+              <Card key={proj.id} className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '18' }}>
+                    <Layers size={18} style={{ color }} />
+                  </div>
+                  <Badge color={proj.status === 'done' ? '#10B981' : color} light>{statusLabel}</Badge>
                 </div>
-                <span className="figma-chip figma-chip-mauve">{p.status}</span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--text-soft)]">
-                {p.lead ? <span className="figma-chip">Lead: {p.lead}</span> : null}
-                {p.targetDate ? <span className="figma-chip figma-chip-amber">Due {p.targetDate}</span> : null}
-                {p.priority ? <span className="figma-chip figma-chip-blue">{p.priority}</span> : null}
-              </div>
-            </div>
-          ))}
+                <h3 className="font-semibold text-stone-900 mb-1">{proj.name || proj.title}</h3>
+                <div className="text-xs text-stone-400 mb-3">
+                  {proj.targetDate ? `Due ${proj.targetDate}` : 'No due date'}
+                  {proj.milestones?.length ? ` · ${proj.milestones.length} milestones` : ''}
+                </div>
+                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: color }} />
+                </div>
+                <div className="text-xs text-stone-400 mt-1.5">{progress}% complete</div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -2419,33 +2405,96 @@ function ProjectsView() {
 }
 
 function PhotosView() {
+  const placeholders = [
+    { id: '1', label: 'Park day', date: 'Add a photo' },
+    { id: '2', label: 'Sunday dinner', date: 'Add a photo' },
+    { id: '3', label: 'Living room', date: 'Add a photo' },
+    { id: '4', label: 'Pet moments', date: 'Add a photo' },
+    { id: '5', label: 'Garden', date: 'Add a photo' },
+    { id: '6', label: 'Cooking night', date: 'Add a photo' },
+  ];
+
   return (
-    <div className="figma-page max-w-3xl">
-      <div className="figma-page-header">
-        <div>
-          <h1 className="figma-page-title">Photos</h1>
-          <p className="figma-page-subtitle">Household photo collection</p>
-        </div>
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold text-stone-900">Photos</h1>
+        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 transition-colors">
+          <Camera size={15} /> Upload
+        </button>
       </div>
-      <div className="figma-empty">
-        No photo gallery items are loaded in this shell yet. Existing FamilyData is untouched.
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {placeholders.map((photo) => (
+          <div
+            key={photo.id}
+            className="group relative rounded-2xl overflow-hidden bg-stone-200 aspect-square cursor-default"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-stone-100 to-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400">
+              <Image size={28} className="opacity-50" />
+              <span className="text-xs font-medium text-stone-500">{photo.label}</span>
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
+              <div className="text-white text-sm font-medium">{photo.label}</div>
+              <div className="text-white/70 text-xs">{photo.date}</div>
+            </div>
+          </div>
+        ))}
       </div>
+      <p className="text-xs text-stone-400 mt-4 text-center">
+        Site-like gallery shell — FamilyData is not seeded with demo photos.
+      </p>
     </div>
   );
 }
 
+const ROUTINE_PRESETS = [
+  { id: 'r1', name: 'Morning routine', time: '7:00 AM', steps: 6, days: ['M', 'T', 'W', 'Th', 'F'], color: '#F59E0B' },
+  { id: 'r2', name: 'School drop-off', time: '8:15 AM', steps: 3, days: ['M', 'T', 'W', 'Th', 'F'], color: '#4F46E5' },
+  { id: 'r3', name: 'After-school', time: '3:30 PM', steps: 4, days: ['M', 'T', 'W', 'Th', 'F'], color: '#10B981' },
+  { id: 'r4', name: 'Evening wind-down', time: '8:30 PM', steps: 5, days: ['M', 'T', 'W', 'Th', 'F', 'Sa', 'Su'], color: '#8B5CF6' },
+  { id: 'r5', name: 'Weekend chores', time: '10:00 AM', steps: 8, days: ['Sa'], color: '#EA580C' },
+];
+
 function RoutinesView() {
   return (
-    <div className="figma-page max-w-3xl">
-      <div className="figma-page-header">
-        <div>
-          <h1 className="figma-page-title">Routines</h1>
-          <p className="figma-page-subtitle">Daily and weekly household routines</p>
-        </div>
+    <div className="p-6 max-w-3xl">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold text-stone-900">Routines</h1>
+        <button type="button" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-cyan-500 hover:bg-cyan-600 transition-colors">
+          <Plus size={15} /> New Routine
+        </button>
       </div>
-      <div className="figma-empty">
-        No routines surface in this shell yet. Existing FamilyData is untouched.
+      <div className="space-y-3">
+        {ROUTINE_PRESETS.map((r) => (
+          <Card key={r.id} className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: r.color + '18' }}>
+              <RefreshCw size={20} style={{ color: r.color }} />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold text-stone-900">{r.name}</div>
+              <div className="text-sm text-stone-500 mt-0.5">{r.time} · {r.steps} steps</div>
+              <div className="flex gap-1 mt-2">
+                {['M', 'T', 'W', 'Th', 'F', 'Sa', 'Su'].map((d) => (
+                  <span
+                    key={d}
+                    className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${
+                      r.days.includes(d) ? 'text-white' : 'text-stone-300 bg-stone-100'
+                    }`}
+                    style={r.days.includes(d) ? { backgroundColor: r.color } : undefined}
+                  >
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="text-stone-300 hover:text-stone-600 p-1 transition-colors">
+              <Edit2 size={15} />
+            </button>
+          </Card>
+        ))}
       </div>
+      <p className="text-xs text-stone-400 mt-4">
+        Display chrome matches the Figma site. Routine presets are UI-only and do not write FamilyData.
+      </p>
     </div>
   );
 }
@@ -2453,90 +2502,163 @@ function RoutinesView() {
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
 function SettingsView() {
-  const { members, householdName, setHouseholdName, navigate, activeMemberId, setActiveMember } = useHub();
+  const {
+    members,
+    householdName,
+    setHouseholdName,
+    navigate,
+    activeMemberId,
+    setActiveMember,
+    setPreviewMode,
+    previewMode,
+    docs,
+    badges,
+  } = useHub();
   const [nameDraft, setNameDraft] = useState(householdName);
   const [saved, setSaved] = useState(false);
   const activeName = members.find((m) => m.id === activeMemberId)?.name || 'Not set';
 
   return (
-    <div className="figma-page max-w-2xl">
-      <div className="figma-page-header">
-        <div>
-          <h1 className="figma-page-title">Settings</h1>
-          <p className="figma-page-subtitle">Household preferences and device identity</p>
-        </div>
-      </div>
+    <div className="p-6 max-w-2xl">
+      <h1 className="text-xl font-semibold text-stone-900 mb-6">Settings</h1>
       <div className="space-y-6">
         <div>
-          <div className="figma-sidebar-section-label mb-2">Household</div>
-          <Card className="p-6 space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-1 block">Household name</label>
-              <div className="flex gap-2">
-                <input
-                  value={nameDraft}
-                  onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
-                  className="flex-1 px-4 py-3 rounded-[18px] border border-[var(--border-input)] text-sm focus:outline-none focus:border-[var(--accent-mauve)]"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHouseholdName(nameDraft);
-                    setSaved(true);
-                  }}
-                  className="figma-button-primary"
-                >
-                  Save
-                </button>
+          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Household</div>
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-100 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">Household name</label>
+                <div className="flex gap-2">
+                  <input
+                    value={nameDraft}
+                    onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHouseholdName(nameDraft);
+                      setSaved(true);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Save
+                  </button>
+                </div>
+                {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
               </div>
-              {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">
+                  Who is using this device
+                </label>
+                <select
+                  value={activeMemberId || ''}
+                  onChange={(e) => setActiveMember(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <div className="text-xs text-stone-400 mt-1">Messages and med logs attribute to {activeName}</div>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">
-                Who is using this device
-              </label>
-              <select
-                value={activeMemberId || ''}
-                onChange={(e) => setActiveMember(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
-              >
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-              <div className="text-xs text-stone-400 mt-1">Messages and med logs attribute to {activeName}</div>
-            </div>
-            <button type="button" onClick={() => navigate('family')} className="w-full flex items-center gap-4 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Users size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('family')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Users size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Family members</div>
                 <div className="text-xs text-stone-400 mt-0.5">{members.length} members</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
-            <button type="button" onClick={() => navigate('notifications')} className="w-full flex items-center gap-4 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Bell size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('notifications')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Bell size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Notifications</div>
-                <div className="text-xs text-stone-400 mt-0.5">Open alerts</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {badges.notifications > 0 ? `${badges.notifications} unread` : 'Configured'}
+                </div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
           </Card>
         </div>
+
+        <div>
+          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Data</div>
+          <Card className="overflow-hidden">
+            <button
+              type="button"
+              onClick={() => navigate('docs')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <FileText size={16} className="text-stone-600" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Documents</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {docs.length > 0 ? `${docs.length} saved docs` : 'Household notes & docs'}
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+          </Card>
+        </div>
+
         <div>
           <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">App</div>
           <Card className="overflow-hidden">
-            <button type="button" onClick={() => navigate('home')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left border-b border-stone-100">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Home size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => setPreviewMode?.('app')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Tablet size={16} className="text-stone-600" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Wall display</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {previewMode === 'app' ? 'Tablet / kiosk frame on' : 'Surface Pro style frame'}
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('home')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left border-b border-stone-100"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Home size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Home</div>
                 <div className="text-xs text-stone-400 mt-0.5">Landing page when the app opens</div>
               </div>
               <ChevronRight size={16} className="text-stone-300" />
             </button>
-            <button type="button" onClick={() => navigate('subscriptions')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left">
-              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Key size={16} className="text-stone-600" /></div>
+            <button
+              type="button"
+              onClick={() => navigate('subscriptions')}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <Star size={16} className="text-stone-600" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-stone-900">Subscriptions</div>
                 <div className="text-xs text-stone-400 mt-0.5">Password + who pays</div>
