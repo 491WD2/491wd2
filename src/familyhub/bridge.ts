@@ -357,6 +357,65 @@ export function postFamilyMessage(
   };
 }
 
+export function addChoreTask(
+  data: FamilyData,
+  title: string,
+  assignedMemberId?: string,
+): FamilyData {
+  const trimmed = title.trim();
+  if (!trimmed) return data;
+  const today = new Date().toISOString().slice(0, 10);
+  const member = data.familyMembers.find((m) => m.id === assignedMemberId);
+  const task: Task = {
+    id: `task-${Date.now()}`,
+    title: trimmed,
+    owner: member ? getMemberFullName(member) : "Family",
+    status: "Today",
+    priority: "Medium",
+    dueDate: today,
+    type: "chore",
+    frequency: "one-time",
+    lastCompletedDate: "",
+    nextDueDate: today,
+    assignedMemberId: assignedMemberId || "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  return { ...data, tasks: [task, ...data.tasks] };
+}
+
+export function addPlannerEvent(
+  data: FamilyData,
+  input: { title: string; date?: string; time?: string; memberId?: string },
+): FamilyData {
+  const trimmed = input.title.trim();
+  if (!trimmed) return data;
+  const date = input.date || new Date().toISOString().slice(0, 10);
+  const member = data.familyMembers.find((m) => m.id === input.memberId);
+  const evt = {
+    id: `plan-${Date.now()}`,
+    title: trimmed,
+    date,
+    time: input.time || "17:00",
+    category: "Family" as const,
+    assignedMemberId: input.memberId || "",
+    assignedPerson: member ? getMemberFullName(member) : "Family",
+  };
+  return { ...data, planner: [evt, ...data.planner] };
+}
+
+export function updateHouseholdName(data: FamilyData, name: string): FamilyData {
+  const trimmed = name.trim();
+  if (!trimmed) return data;
+  return {
+    ...data,
+    adminSettings: {
+      ...data.adminSettings,
+      householdName: trimmed,
+    },
+  };
+}
+
 export function toggleShoppingPurchased(
   data: FamilyData,
   id: string,

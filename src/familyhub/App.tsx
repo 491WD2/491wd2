@@ -1,18 +1,20 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Home, MessageSquare, Calendar, ShoppingCart, Package,
-  Wrench, AlertTriangle, Heart, CreditCard, FolderOpen,
+  Wrench, AlertTriangle, Heart, CreditCard,
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users, Wind, Droplets, Star, Tag,
+  Users, Wind, Droplets,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
   Monitor, Tablet,
 } from 'lucide-react';
 import { useFamilyData } from '../hooks/useFamilyData';
 import {
+  addChoreTask,
   addPantryItem as bridgeAddPantry,
+  addPlannerEvent,
   addShoppingItem as bridgeAddShopping,
   addVaultPassword,
   addVaultSubscription,
@@ -32,6 +34,7 @@ import {
   readHouseholdVault,
   toggleChoreDone as bridgeToggleChore,
   toggleShoppingPurchased,
+  updateHouseholdName,
   updatePantryQuantity,
   writeHouseholdVault,
   type HubChore,
@@ -80,6 +83,11 @@ type HubContextValue = {
   postMessage: (text: string) => void;
   addSubscription: (name: string, amount: number) => void;
   addPassword: (label: string, username: string, hint: string) => void;
+  addChore: (title: string, memberId?: string) => void;
+  addEvent: (title: string, memberId?: string) => void;
+  householdName: string;
+  setHouseholdName: (name: string) => void;
+  navigate: (view: View) => void;
 };
 
 const HubContext = createContext<HubContextValue | null>(null);
@@ -216,7 +224,7 @@ const SYSTEM_NAV: NavItem[] = [
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const { members: FAMILY_MEMBERS, badges } = useHub();
+  const { members: FAMILY_MEMBERS, badges, householdName } = useHub();
   const primaryNav = PRIMARY_NAV.map((item) => {
     if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
     if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
@@ -260,8 +268,8 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
           <Home size={16} className="text-white" />
         </div>
         {!collapsed && (
-          <div>
-            <div className="font-semibold text-stone-900 text-sm leading-tight">FamilyHub</div>
+          <div className="min-w-0">
+            <div className="font-semibold text-stone-900 text-sm leading-tight truncate">{householdName}</div>
             <div className="text-xs text-stone-400 leading-tight">Household Command</div>
           </div>
         )}
@@ -1198,7 +1206,10 @@ function MessagesView() {
 // ── Calendar Page ─────────────────────────────────────────────────────────────
 
 function CalendarView() {
-  const { members: FAMILY_MEMBERS, events: EVENTS } = useHub();
+  const { members: FAMILY_MEMBERS, events: EVENTS, addEvent } = useHub();
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [assignee, setAssignee] = useState(FAMILY_MEMBERS[0]?.id || '');
 
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const today = new Date();
@@ -1249,10 +1260,31 @@ function CalendarView() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-stone-900">Upcoming</h3>
-            <button className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
+            <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
               <Plus size={12} /> Add event
             </button>
           </div>
+          {showAdd && (
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!draft.trim()) return;
+                addEvent(draft, assignee || undefined);
+                setDraft('');
+                setShowAdd(false);
+              }}
+            >
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Event title" className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+              <div className="flex gap-2">
+                <select value={assignee} onChange={(e) => setAssignee(e.target.value)} className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm">
+                  <option value="">Family</option>
+                  {FAMILY_MEMBERS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600">Save</button>
+              </div>
+            </form>
+          )}
           {EVENTS.map(evt => (
             <Card key={evt.id} className="p-4">
               <div className="flex items-start gap-3">
@@ -1278,7 +1310,10 @@ function CalendarView() {
 // ── Cleaning Page ─────────────────────────────────────────────────────────────
 
 function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id: string) => void }) {
-  const { members: FAMILY_MEMBERS } = useHub();
+  const { members: FAMILY_MEMBERS, addChore } = useHub();
+  const [draft, setDraft] = useState('');
+  const [assignee, setAssignee] = useState(FAMILY_MEMBERS[0]?.id || '');
+  const [showAdd, setShowAdd] = useState(false);
   const today = chores.filter(c => c.due === 'Today');
   const upcoming = chores.filter(c => c.due !== 'Today');
 
@@ -1286,10 +1321,43 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-stone-900">Cleaning & Kitchen</h1>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 transition-colors">
+        <button
+          type="button"
+          onClick={() => setShowAdd((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 transition-colors"
+        >
           <Plus size={15} /> Add Chore
         </button>
       </div>
+      {showAdd && (
+        <form
+          className="mb-5 flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!draft.trim()) return;
+            addChore(draft, assignee || undefined);
+            setDraft('');
+            setShowAdd(false);
+          }}
+        >
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Chore title"
+            className="flex-1 min-w-[180px] px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          />
+          <select
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          >
+            {FAMILY_MEMBERS.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500">Save</button>
+        </form>
+      )}
 
       <div className="space-y-5">
         <div>
@@ -1717,57 +1785,77 @@ function DocsView() {
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
 function SettingsView() {
-  const SECTIONS = [
-    {
-      title: 'Household', items: [
-        { label: 'Family members', sub: '6 members', icon: Users },
-        { label: 'Household name', sub: 'The Family', icon: Home },
-        { label: 'Notifications', sub: 'Configured', icon: Bell },
-      ]
-    },
-    {
-      title: 'Data', items: [
-        { label: 'Backup & export', sub: 'Last backup: Aug 5', icon: Archive },
-        { label: 'Import data', sub: 'CSV, JSON supported', icon: FolderOpen },
-        { label: 'Product library', sub: '142 saved products', icon: Tag },
-      ]
-    },
-    {
-      title: 'App', items: [
-        { label: 'Wall display', sub: 'Always-on Home page', icon: Home },
-        { label: 'Display & theme', sub: 'Light mode', icon: Star },
-        { label: 'Privacy', sub: 'Manage permissions', icon: ShieldAlert },
-      ]
-    },
-  ];
+  const { members, householdName, setHouseholdName, navigate } = useHub();
+  const [nameDraft, setNameDraft] = useState(householdName);
+  const [saved, setSaved] = useState(false);
 
   return (
     <div className="p-6 max-w-2xl">
       <h1 className="text-xl font-semibold text-stone-900 mb-6">Settings</h1>
       <div className="space-y-6">
-        {SECTIONS.map(section => (
-          <div key={section.title}>
-            <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">{section.title}</div>
-            <Card className="overflow-hidden">
-              {section.items.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <button key={i} className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors text-left
-                    ${i < section.items.length - 1 ? 'border-b border-stone-100' : ''}`}>
-                    <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
-                      <Icon size={16} className="text-stone-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-stone-900">{item.label}</div>
-                      <div className="text-xs text-stone-400 mt-0.5">{item.sub}</div>
-                    </div>
-                    <ChevronRight size={16} className="text-stone-300" />
-                  </button>
-                );
-              })}
-            </Card>
-          </div>
-        ))}
+        <div>
+          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Household</div>
+          <Card className="p-5 space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">Household name</label>
+              <div className="flex gap-2">
+                <input
+                  value={nameDraft}
+                  onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
+                  className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHouseholdName(nameDraft);
+                    setSaved(true);
+                  }}
+                  className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600"
+                >
+                  Save
+                </button>
+              </div>
+              {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
+            </div>
+            <button type="button" onClick={() => navigate('family')} className="w-full flex items-center gap-4 text-left">
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Users size={16} className="text-stone-600" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Family members</div>
+                <div className="text-xs text-stone-400 mt-0.5">{members.length} members</div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+            <button type="button" onClick={() => navigate('notifications')} className="w-full flex items-center gap-4 text-left">
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Bell size={16} className="text-stone-600" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Notifications</div>
+                <div className="text-xs text-stone-400 mt-0.5">Open alerts</div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+          </Card>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">App</div>
+          <Card className="overflow-hidden">
+            <button type="button" onClick={() => navigate('home')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left border-b border-stone-100">
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Home size={16} className="text-stone-600" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Wall display</div>
+                <div className="text-xs text-stone-400 mt-0.5">Always-on Home page</div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+            <button type="button" onClick={() => navigate('subscriptions')} className="w-full flex items-center gap-4 px-5 py-4 hover:bg-stone-50 text-left">
+              <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Key size={16} className="text-stone-600" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-stone-900">Subscriptions & passwords</div>
+                <div className="text-xs text-stone-400 mt-0.5">Manage vault</div>
+              </div>
+              <ChevronRight size={16} className="text-stone-300" />
+            </button>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -1876,6 +1964,11 @@ export default function App() {
         writeHouseholdVault(addVaultPassword(readHouseholdVault(), { label, username, hint }));
         setVaultTick((n) => n + 1);
       },
+      addChore: (title, memberId) => setData((prev) => addChoreTask(prev, title, memberId)),
+      addEvent: (title, memberId) => setData((prev) => addPlannerEvent(prev, { title, memberId })),
+      householdName: data.adminSettings.householdName || 'FamilyHub',
+      setHouseholdName: (name) => setData((prev) => updateHouseholdName(prev, name)),
+      navigate: setView,
     };
   }, [data, vault]);
 
