@@ -2775,20 +2775,19 @@ export default function App() {
     </div>
   );
 
+  // Full-bleed shell matches the attached Figma/admin reference.
+  // Wall/tablet frame is opt-in via Account → Wall display (previewMode === 'app').
   return (
     <HubContext.Provider value={hub}>
-      <div className="relative h-screen w-screen overflow-hidden bg-stone-950">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
-          <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
-        </div>
-
-        {previewMode === 'desktop' ? (
-          <div className="h-full w-full pt-14">{shell}</div>
-        ) : (
+      {previewMode === 'app' ? (
+        <div className="relative h-screen w-screen overflow-hidden bg-[#0c0a09]">
+          <div className="pointer-events-auto absolute inset-x-0 top-0 z-50 flex justify-center pt-3 sm:pt-4">
+            <PreviewModeToggle mode={previewMode} onChange={setPreviewMode} />
+          </div>
           <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#292524_0%,#0c0a09_55%)] px-4 pb-6 pt-16">
             <div className="flex w-full max-w-[1180px] flex-col items-center gap-3">
               <div className="text-center text-xs font-medium tracking-wide text-stone-400">
-                App view · landscape tablet frame (wall display)
+                Wall display · landscape tablet frame
               </div>
               <div
                 className="w-full overflow-hidden rounded-[28px] border border-stone-700 bg-stone-900 shadow-[0_40px_80px_rgba(0,0,0,0.45)]"
@@ -2798,15 +2797,19 @@ export default function App() {
                   <div className="mb-2 flex items-center justify-center">
                     <div className="h-1.5 w-24 rounded-full bg-stone-700" />
                   </div>
-                  <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#F8F6F2]">
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-[var(--app-bg)]">
                     {shell}
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="h-screen w-screen overflow-hidden bg-[var(--app-bg)]">
+          {shell}
+        </div>
+      )}
     </HubContext.Provider>
   );
 }
