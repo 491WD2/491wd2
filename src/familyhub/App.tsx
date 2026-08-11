@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Home, MessageSquare, Calendar, ShoppingCart, Package,
-  Wrench, AlertTriangle, Heart, CreditCard,
+  Wrench, Heart, CreditCard,
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
@@ -13,14 +13,20 @@ import {
 import { useFamilyData } from '../hooks/useFamilyData';
 import {
   addChoreTask,
+  addFamilyMember as bridgeAddMember,
   addPantryItem as bridgeAddPantry,
+  addPet as bridgeAddPet,
   addPlannerEvent,
+  addPreparednessNote,
   addShoppingItem as bridgeAddShopping,
   addVaultPassword,
   addVaultSubscription,
   deleteShoppingItem as bridgeDeleteShopping,
+  dismissNotification as bridgeDismissNotification,
+  logPetFleaDose,
   mapHubChores,
   mapHubDocs,
+  mapHubEmergency,
   mapHubEvents,
   mapHubMembers,
   mapHubMessages,
@@ -30,15 +36,22 @@ import {
   mapHubPets,
   mapHubShopping,
   mapHubSubscriptions,
+  markNotificationRead as bridgeMarkNotificationRead,
   postFamilyMessage,
   readHouseholdVault,
+  sessionMemberId,
+  setActiveMember as bridgeSetActiveMember,
   toggleChoreDone as bridgeToggleChore,
   toggleShoppingPurchased,
   updateHouseholdName,
+  updateMemberField,
   updatePantryQuantity,
+  updatePet as bridgeUpdatePet,
+  updatePreparednessNote,
   writeHouseholdVault,
   type HubChore,
   type HubDoc,
+  type HubEmergencyItem,
   type HubEvent,
   type HubMember,
   type HubMessage,
@@ -69,11 +82,13 @@ type HubContextValue = {
   events: HubEvent[];
   messages: HubMessage[];
   pets: HubPet[];
+  emergencyItems: HubEmergencyItem[];
   subscriptions: HubSubscription[];
   passwords: HubPassword[];
   notifications: HubNotification[];
   docs: HubDoc[];
-  badges: { messages: number; shopping: number; pantry: number };
+  badges: { messages: number; shopping: number; pantry: number; notifications: number };
+  activeMemberId?: string;
   toggleShoppingItem: (id: string) => void;
   deleteShoppingItem: (id: string) => void;
   addShoppingItem: (name: string, qty: string) => void;
@@ -85,6 +100,16 @@ type HubContextValue = {
   addPassword: (label: string, username: string, hint: string) => void;
   addChore: (title: string, memberId?: string) => void;
   addEvent: (title: string, memberId?: string) => void;
+  setActiveMember: (memberId: string) => void;
+  addFamilyMember: (name: string) => void;
+  updateMemberMedical: (memberId: string, field: 'allergies' | 'emergencyContact', value: string) => void;
+  addEmergencyNote: (title: string, body: string) => void;
+  updateEmergencyNote: (docId: string, value: string) => void;
+  addPet: (name: string, species: 'cat' | 'dog' | 'other') => void;
+  renamePet: (petId: string, name: string) => void;
+  logFleaDose: (petId: string) => void;
+  markNotificationRead: (id: string) => void;
+  dismissNotification: (id: string) => void;
   householdName: string;
   setHouseholdName: (name: string) => void;
   navigate: (view: View) => void;
@@ -132,15 +157,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 /* PASSWORDS via useHub */
 
 
-
-const EMERGENCY_ITEMS = [
-  { id: '1', cat: 'Contacts',      label: 'Emergency services', value: '911',            icon: ShieldAlert, color: '#EF4444' },
-  { id: '2', cat: 'Contacts',      label: 'Poison Control',     value: '1-800-222-1222', icon: AlertTriangle, color: '#F97316' },
-  { id: '3', cat: 'Medical',       label: 'Hershel — blood type',value: 'O+',            icon: Heart, color: '#EC4899' },
-  { id: '4', cat: 'Medical',       label: 'Lorraine — allergies',value: 'Penicillin',    icon: Heart, color: '#EC4899' },
-  { id: '5', cat: 'Preparedness',  label: 'Go-bag location',    value: 'Hall closet, top shelf', icon: Archive, color: '#4F46E5' },
-  { id: '6', cat: 'Preparedness',  label: 'Water supply',       value: '5 gallons (rotate Aug 30)', icon: Droplets, color: '#0EA5E9' },
-];
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
@@ -224,11 +240,17 @@ const SYSTEM_NAV: NavItem[] = [
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const { members: FAMILY_MEMBERS, badges, householdName } = useHub();
+  const { members: FAMILY_MEMBERS, badges, householdName, activeMemberId, setActiveMember } = useHub();
   const primaryNav = PRIMARY_NAV.map((item) => {
     if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
     if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
     if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
+    return item;
+  });
+  const toolsNav = TOOLS_NAV.map((item) => {
+    if (item.id === 'notifications' && badges.notifications > 0) {
+      return { ...item, badge: badges.notifications };
+    }
     return item;
   });
   function NavLink({ item }: { item: NavItem }) {
@@ -289,7 +311,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
         <div>
           {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Household Tools</div>}
           <div className="space-y-0.5">
-            {TOOLS_NAV.map(item => <NavLink key={item.id} item={item} />)}
+            {toolsNav.map(item => <NavLink key={item.id} item={item} />)}
           </div>
         </div>
         <div>
@@ -300,14 +322,27 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
         </div>
       </nav>
 
-      {/* Family avatars */}
+      {/* Family avatars — tap to set who is using this device */}
       {!collapsed && (
         <div className="px-4 py-4 border-t border-black/[0.06]">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">Family</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">
+            Using this device
+          </div>
           <div className="flex flex-wrap gap-1.5">
-            {FAMILY_MEMBERS.map(m => (
-              <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />
-            ))}
+            {FAMILY_MEMBERS.map(m => {
+              const active = m.id === activeMemberId;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={`Switch to ${m.name}`}
+                  onClick={() => setActiveMember(m.id)}
+                  className={`rounded-full transition-all ${active ? 'ring-2 ring-offset-1 ring-indigo-500' : 'opacity-80 hover:opacity-100'}`}
+                >
+                  <MemberDot name={m.name} color={m.color} bg={m.bg} size="sm" />
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1412,18 +1447,45 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
 
 // ── Emergency Planning Page ───────────────────────────────────────────────────
 
+function emergencyIcon(cat: HubEmergencyItem['cat']) {
+  if (cat === 'Contacts') return { Icon: ShieldAlert, color: '#EF4444' };
+  if (cat === 'Medical') return { Icon: Heart, color: '#EC4899' };
+  return { Icon: Archive, color: '#4F46E5' };
+}
+
 function EmergencyView() {
-  const categories = [...new Set(EMERGENCY_ITEMS.map(i => i.cat))];
+  const {
+    emergencyItems,
+    members,
+    addEmergencyNote,
+    updateEmergencyNote,
+    updateMemberMedical,
+  } = useHub();
+  const [showAdd, setShowAdd] = useState(false);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [memberId, setMemberId] = useState(members[0]?.id || '');
+  const [field, setField] = useState<'allergies' | 'emergencyContact' | 'note'>('note');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  const categories = (['Contacts', 'Medical', 'Preparedness'] as const).filter((cat) =>
+    emergencyItems.some((i) => i.cat === cat),
+  );
 
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-semibold text-stone-900">Emergency Planning</h1>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors">
+        <button
+          type="button"
+          onClick={() => setShowAdd((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors"
+        >
           <Plus size={15} /> Add Info
         </button>
       </div>
-      <p className="text-sm text-stone-500 mb-6">Critical contacts, medical info, and preparedness checklist</p>
+      <p className="text-sm text-stone-500 mb-6">Saved household contacts, medical notes, and preparedness info</p>
 
       <div className="mb-5 p-4 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3">
         <ShieldAlert size={20} className="text-red-500 flex-shrink-0" />
@@ -1433,26 +1495,126 @@ function EmergencyView() {
         </div>
       </div>
 
+      {showAdd && (
+        <Card className="p-4 mb-5 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {([
+              { key: 'note' as const, label: 'Preparedness note' },
+              { key: 'allergies' as const, label: 'Allergy' },
+              { key: 'emergencyContact' as const, label: 'ICE contact' },
+            ]).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setField(opt.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                  field === opt.key ? 'bg-red-500 text-white' : 'bg-stone-100 text-stone-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {field !== 'note' && (
+            <select
+              value={memberId}
+              onChange={(e) => setMemberId(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            >
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+          {field === 'note' && (
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Label (e.g. Go-bag location)"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+            />
+          )}
+          <input
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={field === 'allergies' ? 'Allergies' : field === 'emergencyContact' ? 'Phone / contact' : 'Details'}
+            className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!body.trim()) return;
+              if (field === 'note') {
+                if (!title.trim()) return;
+                addEmergencyNote(title, body);
+                setTitle('');
+              } else if (memberId) {
+                updateMemberMedical(memberId, field, body);
+              }
+              setBody('');
+              setShowAdd(false);
+            }}
+            className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-red-500"
+          >
+            Save
+          </button>
+        </Card>
+      )}
+
       <div className="space-y-6">
-        {categories.map(cat => (
+        {categories.map((cat) => (
           <div key={cat}>
             <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2">{cat}</h3>
             <div className="space-y-2">
-              {EMERGENCY_ITEMS.filter(i => i.cat === cat).map(item => {
-                const Icon = item.icon;
+              {emergencyItems.filter((i) => i.cat === cat).map((item) => {
+                const { Icon, color } = emergencyIcon(item.cat);
+                const isEditing = editingId === item.id;
                 return (
                   <Card key={item.id} className="p-4 flex items-center gap-4">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: item.color + '18' }}>
-                      <Icon size={16} style={{ color: item.color }} />
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: color + '18' }}
+                    >
+                      <Icon size={16} style={{ color }} />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="text-xs text-stone-400 font-medium">{item.label}</div>
-                      <div className="text-sm font-semibold text-stone-800 mt-0.5">{item.value}</div>
+                      {isEditing ? (
+                        <form
+                          className="flex gap-2 mt-1"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (item.docId) updateEmergencyNote(item.docId, editValue);
+                            else if (item.memberId && item.field) {
+                              updateMemberMedical(item.memberId, item.field, editValue);
+                            }
+                            setEditingId(null);
+                          }}
+                        >
+                          <input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="flex-1 px-2 py-1 rounded-lg border border-stone-200 text-sm"
+                            autoFocus
+                          />
+                          <button type="submit" className="text-xs font-medium text-indigo-600">Save</button>
+                        </form>
+                      ) : (
+                        <div className="text-sm font-semibold text-stone-800 mt-0.5">{item.value}</div>
+                      )}
                     </div>
-                    <button className="text-stone-300 hover:text-stone-600 transition-colors p-1">
-                      <Edit2 size={14} />
-                    </button>
+                    {item.editable && !isEditing && (
+                      <button
+                        type="button"
+                        className="text-stone-300 hover:text-stone-600 transition-colors p-1"
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEditValue(item.value);
+                        }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
                   </Card>
                 );
               })}
@@ -1467,40 +1629,122 @@ function EmergencyView() {
 // ── Pets Page ─────────────────────────────────────────────────────────────────
 
 function PetsView() {
-  const { pets: PETS } = useHub();
+  const { pets: PETS, addPet, renamePet, logFleaDose } = useHub();
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [species, setSpecies] = useState<'cat' | 'dog' | 'other'>('cat');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-stone-900">Pets</h1>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 transition-colors">
+        <button
+          type="button"
+          onClick={() => setShowAdd((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 transition-colors"
+        >
           <Plus size={15} /> Add Pet
         </button>
       </div>
+
+      {showAdd && (
+        <form
+          className="flex flex-wrap gap-2 mb-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            addPet(name, species);
+            setName('');
+            setShowAdd(false);
+          }}
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Pet name"
+            className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          />
+          <select
+            value={species}
+            onChange={(e) => setSpecies(e.target.value as 'cat' | 'dog' | 'other')}
+            className="px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          >
+            <option value="cat">Cat</option>
+            <option value="dog">Dog</option>
+            <option value="other">Other</option>
+          </select>
+          <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-orange-500">
+            Save
+          </button>
+        </form>
+      )}
+
       <div className="space-y-4">
-        {PETS.map(pet => (
+        {PETS.length === 0 && (
+          <Card className="p-6 text-sm text-stone-500">No pets yet — add your household animals here.</Card>
+        )}
+        {PETS.map((pet) => (
           <Card key={pet.id} className="p-5">
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-                style={{ backgroundColor: pet.color + '18' }}>
-                {pet.type === 'Dog' ? '🐕' : pet.type === 'Cat' ? '🐈' : '🐟'}
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: pet.color + '18' }}
+              >
+                <PawPrint size={22} style={{ color: pet.color }} />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-stone-900 text-lg">{pet.name}</h3>
+                  {editingId === pet.id ? (
+                    <form
+                      className="flex gap-2 flex-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        renamePet(pet.id, editName);
+                        setEditingId(null);
+                      }}
+                    >
+                      <input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="flex-1 px-2 py-1 rounded-lg border border-stone-200 text-sm"
+                        autoFocus
+                      />
+                      <button type="submit" className="text-xs font-medium text-orange-600">Save</button>
+                    </form>
+                  ) : (
+                    <h3 className="font-semibold text-stone-900 text-lg">{pet.name}</h3>
+                  )}
                   <Badge color={pet.color} light>{pet.type}</Badge>
                 </div>
-                <div className="text-sm text-stone-500 mt-0.5">{pet.breed} · {pet.age}</div>
+                <div className="text-sm text-stone-500 mt-0.5">{pet.breed}</div>
                 <div className="mt-3 space-y-1.5">
                   {pet.tasks.map((task, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm">
                       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: pet.color }} />
-                      <span className={task.includes('TODAY') ? 'text-red-600 font-semibold' : 'text-stone-600'}>{task}</span>
+                      <span className={task.includes('TODAY') || task.includes('OVERDUE') ? 'text-red-600 font-semibold' : 'text-stone-600'}>
+                        {task}
+                      </span>
                     </div>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => logFleaDose(pet.id)}
+                  className="mt-3 text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100"
+                >
+                  Log flea dose today
+                </button>
               </div>
-              <button className="text-stone-300 hover:text-stone-600 p-1">
+              <button
+                type="button"
+                className="text-stone-300 hover:text-stone-600 p-1"
+                onClick={() => {
+                  setEditingId(pet.id);
+                  setEditName(pet.name);
+                }}
+              >
                 <Edit2 size={15} />
               </button>
             </div>
@@ -1696,30 +1940,124 @@ function PlannerView() {
 // ── Family Members Page ───────────────────────────────────────────────────────
 
 function FamilyMembersView() {
-  const { members: FAMILY_MEMBERS } = useHub();
+  const {
+    members: FAMILY_MEMBERS,
+    activeMemberId,
+    setActiveMember,
+    addFamilyMember,
+    updateMemberMedical,
+  } = useHub();
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [allergies, setAllergies] = useState('');
+  const [ice, setIce] = useState('');
 
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-stone-900">Family Members</h1>
-          <p className="text-sm text-stone-500 mt-0.5">Colors and check-ins for the household roster</p>
+          <p className="text-sm text-stone-500 mt-0.5">Roster, medical notes, and who is using this device</p>
         </div>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 transition-colors">
+        <button
+          type="button"
+          onClick={() => setShowAdd((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 transition-colors"
+        >
           <Plus size={15} /> Add Member
         </button>
       </div>
+
+      {showAdd && (
+        <form
+          className="flex gap-2 mb-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            addFamilyMember(name);
+            setName('');
+            setShowAdd(false);
+          }}
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Member name"
+            className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
+          />
+          <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-teal-500">
+            Save
+          </button>
+        </form>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {FAMILY_MEMBERS.map(m => (
-          <Card key={m.id} className="p-5 flex items-center gap-4">
-            <MemberDot name={m.name} color={m.color} bg={m.bg} size="lg" />
-            <div className="flex-1">
-              <div className="font-semibold text-stone-900">{m.name}</div>
-              <div className="text-xs text-stone-400 mt-0.5">Active · household member</div>
-            </div>
-            <button className="text-stone-300 hover:text-stone-600 p-1"><Edit2 size={15} /></button>
-          </Card>
-        ))}
+        {FAMILY_MEMBERS.map((m) => {
+          const isActive = m.id === activeMemberId;
+          return (
+            <Card key={m.id} className={`p-5 ${isActive ? 'ring-2 ring-indigo-400' : ''}`}>
+              <div className="flex items-center gap-4">
+                <MemberDot name={m.name} color={m.color} bg={m.bg} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-stone-900">{m.name}</div>
+                  <div className="text-xs text-stone-400 mt-0.5">
+                    {isActive ? 'Using this device' : 'Household member'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="text-stone-300 hover:text-stone-600 p-1"
+                  onClick={() => {
+                    setEditId(editId === m.id ? null : m.id);
+                    setAllergies('');
+                    setIce('');
+                  }}
+                >
+                  <Edit2 size={15} />
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!isActive && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMember(m.id)}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700"
+                  >
+                    Use this device
+                  </button>
+                )}
+              </div>
+              {editId === m.id && (
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (allergies.trim()) updateMemberMedical(m.id, 'allergies', allergies);
+                    if (ice.trim()) updateMemberMedical(m.id, 'emergencyContact', ice);
+                    setEditId(null);
+                  }}
+                >
+                  <input
+                    value={allergies}
+                    onChange={(e) => setAllergies(e.target.value)}
+                    placeholder="Allergies"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                  />
+                  <input
+                    value={ice}
+                    onChange={(e) => setIce(e.target.value)}
+                    placeholder="ICE contact / phone"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                  />
+                  <button type="submit" className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-teal-500">
+                    Save medical info
+                  </button>
+                </form>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -1728,7 +2066,7 @@ function FamilyMembersView() {
 // ── Notifications Page ────────────────────────────────────────────────────────
 
 function NotificationsView() {
-  const { notifications: NOTES } = useHub();
+  const { notifications: NOTES, markNotificationRead, dismissNotification } = useHub();
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-xl font-semibold text-stone-900 mb-6">Notifications</h1>
@@ -1736,8 +2074,14 @@ function NotificationsView() {
         {NOTES.length === 0 ? (
           <Card className="p-6 text-sm text-stone-500">No notifications yet — you are all caught up.</Card>
         ) : null}
-        {NOTES.map(n => (
-          <Card key={n.id} className={`p-4 flex items-start gap-3 ${n.unread ? '' : 'opacity-70'}`}>
+        {NOTES.map((n) => (
+          <Card
+            key={n.id}
+            className={`p-4 flex items-start gap-3 ${n.unread ? '' : 'opacity-70'}`}
+            onClick={() => {
+              if (n.unread) markNotificationRead(n.id);
+            }}
+          >
             <div className="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center flex-shrink-0">
               <Bell size={16} className="text-pink-500" />
             </div>
@@ -1749,6 +2093,17 @@ function NotificationsView() {
               <div className="text-xs text-stone-500 mt-0.5">{n.body}</div>
             </div>
             {n.unread && <div className="w-2 h-2 rounded-full bg-pink-500 mt-2" />}
+            <button
+              type="button"
+              title="Dismiss"
+              className="text-stone-300 hover:text-stone-600 p-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissNotification(n.id);
+              }}
+            >
+              <X size={14} />
+            </button>
           </Card>
         ))}
       </div>
@@ -1785,9 +2140,10 @@ function DocsView() {
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
 function SettingsView() {
-  const { members, householdName, setHouseholdName, navigate } = useHub();
+  const { members, householdName, setHouseholdName, navigate, activeMemberId, setActiveMember } = useHub();
   const [nameDraft, setNameDraft] = useState(householdName);
   const [saved, setSaved] = useState(false);
+  const activeName = members.find((m) => m.id === activeMemberId)?.name || 'Not set';
 
   return (
     <div className="p-6 max-w-2xl">
@@ -1816,6 +2172,21 @@ function SettingsView() {
                 </button>
               </div>
               {saved && <div className="text-xs text-emerald-600 mt-1">Saved</div>}
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">
+                Who is using this device
+              </label>
+              <select
+                value={activeMemberId || ''}
+                onChange={(e) => setActiveMember(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm"
+              >
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <div className="text-xs text-stone-400 mt-1">Messages and med logs attribute to {activeName}</div>
             </div>
             <button type="button" onClick={() => navigate('family')} className="w-full flex items-center gap-4 text-left">
               <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center"><Users size={16} className="text-stone-600" /></div>
@@ -1929,6 +2300,7 @@ export default function App() {
     const shoppingItems = mapHubShopping(data);
     const pantryItems = mapHubPantry(data);
     const messages = mapHubMessages(data);
+    const notifications = mapHubNotifications(data);
     return {
       members: mapHubMembers(data),
       shoppingItems,
@@ -1937,15 +2309,18 @@ export default function App() {
       events: mapHubEvents(data),
       messages,
       pets: mapHubPets(data),
+      emergencyItems: mapHubEmergency(data),
       subscriptions: mapHubSubscriptions(vault),
       passwords: mapHubPasswords(vault),
-      notifications: mapHubNotifications(data),
+      notifications,
       docs: mapHubDocs(data),
       badges: {
         messages: messages.filter((m) => !m.read).length,
         shopping: shoppingItems.filter((i) => !i.checked).length,
         pantry: pantryItems.filter((i) => i.status === 'out' || i.status === 'low').length,
+        notifications: notifications.filter((n) => n.unread).length,
       },
+      activeMemberId: sessionMemberId(data),
       toggleShoppingItem: (id) => setData((prev) => toggleShoppingPurchased(prev, id)),
       deleteShoppingItem: (id) => setData((prev) => bridgeDeleteShopping(prev, id)),
       addShoppingItem: (name, qty) => setData((prev) => bridgeAddShopping(prev, name, qty)),
@@ -1953,8 +2328,7 @@ export default function App() {
       addPantryItem: (name, qty) => setData((prev) => bridgeAddPantry(prev, name, qty)),
       toggleChore: (id) => setData((prev) => bridgeToggleChore(prev, id)),
       postMessage: (text) => {
-        const author = data.familyMembers.find((m) => m.status !== 'archived')?.id;
-        setData((prev) => postFamilyMessage(prev, text, author));
+        setData((prev) => postFamilyMessage(prev, text, sessionMemberId(prev)));
       },
       addSubscription: (name, amount) => {
         writeHouseholdVault(addVaultSubscription(readHouseholdVault(), { name, amount }));
@@ -1966,6 +2340,17 @@ export default function App() {
       },
       addChore: (title, memberId) => setData((prev) => addChoreTask(prev, title, memberId)),
       addEvent: (title, memberId) => setData((prev) => addPlannerEvent(prev, { title, memberId })),
+      setActiveMember: (memberId) => setData((prev) => bridgeSetActiveMember(prev, memberId)),
+      addFamilyMember: (name) => setData((prev) => bridgeAddMember(prev, name)),
+      updateMemberMedical: (memberId, field, value) =>
+        setData((prev) => updateMemberField(prev, memberId, { [field]: value })),
+      addEmergencyNote: (title, body) => setData((prev) => addPreparednessNote(prev, title, body)),
+      updateEmergencyNote: (docId, value) => setData((prev) => updatePreparednessNote(prev, docId, value)),
+      addPet: (name, species) => setData((prev) => bridgeAddPet(prev, name, species)),
+      renamePet: (petId, name) => setData((prev) => bridgeUpdatePet(prev, petId, { name })),
+      logFleaDose: (petId) => setData((prev) => logPetFleaDose(prev, petId)),
+      markNotificationRead: (id) => setData((prev) => bridgeMarkNotificationRead(prev, id)),
+      dismissNotification: (id) => setData((prev) => bridgeDismissNotification(prev, id)),
       householdName: data.adminSettings.householdName || 'FamilyHub',
       setHouseholdName: (name) => setData((prev) => updateHouseholdName(prev, name)),
       navigate: setView,

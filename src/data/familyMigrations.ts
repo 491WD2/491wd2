@@ -182,8 +182,10 @@ export function normalizeFamilyData(value: unknown): FamilyData {
       (event) => normalizePlannerEvent(event, adminSettings),
     ).map((event) => normalizePlannerAssignment(event, familyMembers)),
     calendarLinks: normalizeCalendarLinks(value.calendarLinks),
-    docs: normalizeArray(value.docs, [], (doc) =>
-      normalizeDocItem(doc, familyMembers, adminSettings),
+    docs: mergeDefaultEmergencyDocs(
+      normalizeArray(value.docs, [], (doc) =>
+        normalizeDocItem(doc, familyMembers, adminSettings),
+      ),
     ),
     cleaningRooms: normalizeCleaningRooms(value.cleaningRooms),
     cleaningCompletionRecords: normalizeCleaningCompletionRecords(value.cleaningCompletionRecords),
@@ -660,6 +662,22 @@ const DEFAULT_HOUSEHOLD_CATS: ReadonlyArray<{ name: string; colorTheme: string }
   { name: "Cleo", colorTheme: "teal" },
   { name: "Pickeles", colorTheme: "violet" },
 ];
+
+const DEFAULT_EMERGENCY_DOC_IDS = [
+  "doc-emergency-gobag",
+  "doc-emergency-water",
+] as const;
+
+/** Ensure preparedness notes exist for households that predate the FamilyHub emergency wiring. */
+function mergeDefaultEmergencyDocs(existing: DocItem[]): DocItem[] {
+  const seen = new Set(existing.map((d) => d.id));
+  const extras = initialFamilyData.docs.filter(
+    (d) =>
+      DEFAULT_EMERGENCY_DOC_IDS.includes(d.id as (typeof DEFAULT_EMERGENCY_DOC_IDS)[number]) &&
+      !seen.has(d.id),
+  );
+  return extras.length > 0 ? [...existing, ...extras] : existing;
+}
 
 function mergeDefaultPets(existing: Pet[]): Pet[] {
   const now = new Date().toISOString();

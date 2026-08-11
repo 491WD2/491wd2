@@ -4,12 +4,21 @@ import type {
   HouseholdNotification,
   MessageBoardItem,
   PantryItem,
+  Pet,
+  PetMedicationEntry,
+  PetSpecies,
   ShoppingItem,
   Task,
   DocItem,
 } from "../data/familyData";
 import { WAKE_PAGE_MEMBER_DISPLAY_ORDER } from "../data/familyData";
+import { resolveSessionMemberIdForUi } from "../lib/familyDataSelectors";
 import { getMemberColor } from "../lib/memberColors";
+import {
+  computeFleaMedicationUiStatus,
+  latestFleaEntryForPet,
+  syncPetFleaDueNotifications,
+} from "../lib/petFleaMedication";
 import { getMemberFullName } from "../lib/utils";
 import {
   addVaultPassword,
@@ -83,6 +92,18 @@ export type HubPet = {
   age: string;
   color: string;
   tasks: string[];
+  fleaStatus: "none" | "upToDate" | "dueSoon" | "dueToday" | "overdue";
+};
+
+export type HubEmergencyItem = {
+  id: string;
+  cat: "Contacts" | "Medical" | "Preparedness";
+  label: string;
+  value: string;
+  editable: boolean;
+  memberId?: string;
+  field?: "allergies" | "emergencyContact";
+  docId?: string;
 };
 
 export type HubSubscription = {
@@ -271,15 +292,34 @@ export function mapHubMessages(data: FamilyData): HubMessage[] {
   }));
 }
 
+function fleaStatusLabel(
+  status: ReturnType<typeof computeFleaMedicationUiStatus>,
+): string {
+  switch (status) {
+    case "upToDate":
+      return "Flea med · up to date";
+    case "dueSoon":
+      return "Flea med · due soon";
+    case "dueToday":
+      return "Flea med · DUE TODAY";
+    case "overdue":
+      return "Flea med · OVERDUE";
+    default:
+      return "No flea medication logged yet";
+  }
+}
+
 export function mapHubPets(data: FamilyData): HubPet[] {
   const meds = data.petMedicationEntries ?? [];
   return (data.pets ?? [])
     .filter((pet) => pet.active !== false)
     .map((pet) => {
-      const related = meds
-        .filter((m) => m.petId === pet.id)
-        .slice(0, 3)
-        .map((m) => `${m.medicationType} · ${formatDueLabel(m.givenAt.slice(0, 10))}`);
+      const latest = latestFleaEntryForPet(pet.id, meds);
+      const fleaStatus = computeFleaMedicationUiStatus(latest?.givenAt);
+      const tasks = [fleaStatusLabel(fleaStatus)];
+      if (latest) {
+        tasks.push(`Last dose · ${formatDueLabel(latest.givenAt.slice(0, 10))}`);
+      }
       const color = pet.colorTheme
         ? getMemberColor({
             id: pet.id,
@@ -293,12 +333,82 @@ export function mapHubPets(data: FamilyData): HubPet[] {
         id: pet.id,
         name: pet.name,
         type: pet.species === "dog" ? "Dog" : pet.species === "cat" ? "Cat" : "Pet",
-        breed: pet.species,
+        breed: pet.species === "dog" ? "Dog" : pet.species === "cat" ? "Cat" : "Other",
         age: "",
         color,
-        tasks: related.length > 0 ? related : ["No medication logged yet"],
+        tasks,
+        fleaStatus,
       };
     });
+}
+
+export function mapHubEmergency(data: FamilyData): HubEmergencyItem[] {
+  const items: HubEmergencyItem[] = [
+    {
+      id: "static-911",
+      cat: "Contacts",
+      label: "Emergency services",
+      value: "911",
+      editable: false,
+    },
+    {
+      id: "static-poison",
+      cat: "Contacts",
+      label: "Poison Control",
+      value: "1-800-222-1222",
+      editable: false,
+    },
+  ];
+
+  for (const member of data.familyMembers.filter((m) => m.status !== "archived")) {
+    const name = getMemberFullName(member);
+    if (member.emergencyContact?.trim()) {
+      items.push({
+        id: `ice-${member.id}`,
+        cat: "Contacts",
+        label: `${name} — ICE contact`,
+        value: member.emergencyContact.trim(),
+        editable: true,
+        memberId: member.id,
+        field: "emergencyContact",
+      });
+    }
+    if (member.allergies?.trim()) {
+      items.push({
+        id: `allergy-${member.id}`,
+        cat: "Medical",
+        label: `${name} — allergies`,
+        value: member.allergies.trim(),
+        editable: true,
+        memberId: member.id,
+        field: "allergies",
+      });
+    }
+    const blood = member.notes?.match(/blood\s*type\s*[:\-]?\s*(.+)/i)?.[1]?.trim();
+    if (blood) {
+      items.push({
+        id: `blood-${member.id}`,
+        cat: "Medical",
+        label: `${name} — blood type`,
+        value: blood,
+        editable: false,
+        memberId: member.id,
+      });
+    }
+  }
+
+  for (const doc of data.docs.filter((d) => d.category === "emergency")) {
+    items.push({
+      id: `doc-${doc.id}`,
+      cat: "Preparedness",
+      label: doc.title,
+      value: (doc.body || doc.content || "").trim() || "—",
+      editable: true,
+      docId: doc.id,
+    });
+  }
+
+  return items;
 }
 
 export function mapHubNotifications(data: FamilyData): HubNotification[] {
@@ -532,6 +642,175 @@ export function toggleChoreDone(data: FamilyData, id: string): FamilyData {
       };
     }),
   };
+}
+
+export function setActiveMember(data: FamilyData, memberId: string): FamilyData {
+  if (!data.familyMembers.some((m) => m.id === memberId && m.status !== "archived")) {
+    return data;
+  }
+  return {
+    ...data,
+    adminSettings: {
+      ...data.adminSettings,
+      activeMemberId: memberId,
+    },
+  };
+}
+
+export function addFamilyMember(data: FamilyData, name: string): FamilyData {
+  const trimmed = name.trim();
+  if (!trimmed) return data;
+  const themes = ["rose", "blue", "purple", "green", "orange", "slate"] as const;
+  const member: FamilyMember = {
+    id: `member-${Date.now()}`,
+    name: trimmed,
+    status: "active",
+    colorTheme: themes[data.familyMembers.length % themes.length] ?? "slate",
+    notes: "",
+    updatedAt: new Date().toISOString(),
+  };
+  return { ...data, familyMembers: [...data.familyMembers, member] };
+}
+
+export function updateMemberField(
+  data: FamilyData,
+  memberId: string,
+  patch: Partial<Pick<FamilyMember, "allergies" | "emergencyContact" | "notes" | "name">>,
+): FamilyData {
+  return {
+    ...data,
+    familyMembers: data.familyMembers.map((m) =>
+      m.id === memberId
+        ? { ...m, ...patch, updatedAt: new Date().toISOString() }
+        : m,
+    ),
+  };
+}
+
+export function addPreparednessNote(
+  data: FamilyData,
+  title: string,
+  body: string,
+): FamilyData {
+  const t = title.trim();
+  const b = body.trim();
+  if (!t || !b) return data;
+  const now = new Date().toISOString();
+  const doc: DocItem = {
+    id: `doc-${Date.now()}`,
+    title: t,
+    content: b,
+    body: b,
+    category: "emergency",
+    tags: ["preparedness"],
+    pinned: false,
+    relatedMemberIds: [],
+    relatedProjectId: "",
+    visibility: "household",
+    createdAt: now,
+    updatedAt: now,
+    source: "manual",
+  };
+  return { ...data, docs: [doc, ...data.docs] };
+}
+
+export function updatePreparednessNote(
+  data: FamilyData,
+  docId: string,
+  value: string,
+): FamilyData {
+  const trimmed = value.trim();
+  if (!trimmed) return data;
+  return {
+    ...data,
+    docs: data.docs.map((doc) =>
+      doc.id === docId
+        ? { ...doc, body: trimmed, content: trimmed, updatedAt: new Date().toISOString() }
+        : doc,
+    ),
+  };
+}
+
+export function addPet(
+  data: FamilyData,
+  name: string,
+  species: PetSpecies = "cat",
+): FamilyData {
+  const trimmed = name.trim();
+  if (!trimmed) return data;
+  const now = new Date().toISOString();
+  const themes = ["orange", "rose", "blue", "green", "purple", "slate"] as const;
+  const pet: Pet = {
+    id: `pet-${Date.now()}`,
+    name: trimmed,
+    species,
+    colorTheme: themes[(data.pets?.length ?? 0) % themes.length],
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  return { ...data, pets: [...(data.pets ?? []), pet] };
+}
+
+export function updatePet(
+  data: FamilyData,
+  petId: string,
+  patch: Partial<Pick<Pet, "name" | "species">>,
+): FamilyData {
+  return {
+    ...data,
+    pets: (data.pets ?? []).map((pet) =>
+      pet.id === petId
+        ? { ...pet, ...patch, updatedAt: new Date().toISOString() }
+        : pet,
+    ),
+  };
+}
+
+export function logPetFleaDose(
+  data: FamilyData,
+  petId: string,
+  givenByMemberId?: string,
+): FamilyData {
+  if (!(data.pets ?? []).some((p) => p.id === petId && p.active !== false)) return data;
+  const now = new Date().toISOString();
+  const entry: PetMedicationEntry = {
+    id: `petmed-${Date.now()}`,
+    petId,
+    medicationType: "flea",
+    givenAt: now,
+    givenByMemberId: givenByMemberId || resolveSessionMemberIdForUi(data),
+    createdAt: now,
+    updatedAt: now,
+  };
+  return syncPetFleaDueNotifications({
+    ...data,
+    petMedicationEntries: [...(data.petMedicationEntries ?? []), entry],
+  });
+}
+
+export function markNotificationRead(data: FamilyData, id: string): FamilyData {
+  const now = new Date().toISOString();
+  return {
+    ...data,
+    notifications: (data.notifications ?? []).map((n) =>
+      n.id === id && !n.readAt ? { ...n, readAt: now } : n,
+    ),
+  };
+}
+
+export function dismissNotification(data: FamilyData, id: string): FamilyData {
+  const now = new Date().toISOString();
+  return {
+    ...data,
+    notifications: (data.notifications ?? []).map((n) =>
+      n.id === id ? { ...n, dismissedAt: now, readAt: n.readAt || now } : n,
+    ),
+  };
+}
+
+export function sessionMemberId(data: FamilyData): string | undefined {
+  return resolveSessionMemberIdForUi(data);
 }
 
 export { readHouseholdVault, writeHouseholdVault, addVaultSubscription, addVaultPassword };

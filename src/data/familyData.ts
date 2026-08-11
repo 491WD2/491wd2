@@ -1357,13 +1357,22 @@ const CANONICAL_MEMBER_COLOR_THEMES: (typeof memberColorThemes)[number][] = [
 
 /** Stable IDs `member-1`… match bundled seed tasks and projects; Selena is `member-6`. */
 export function createCanonicalHouseholdFamilyMembers(): FamilyMember[] {
-  return CANONICAL_HOUSEHOLD_ROSTER_NAMES.map((name, index) => ({
-    id: `member-${index + 1}`,
-    name,
-    status: "active",
-    colorTheme: CANONICAL_MEMBER_COLOR_THEMES[index] ?? "slate",
-    notes: "",
-  }));
+  return CANONICAL_HOUSEHOLD_ROSTER_NAMES.map((name, index) => {
+    const base: FamilyMember = {
+      id: `member-${index + 1}`,
+      name,
+      status: "active",
+      colorTheme: CANONICAL_MEMBER_COLOR_THEMES[index] ?? "slate",
+      notes: "",
+    };
+    if (name === "Lorraine") {
+      return { ...base, allergies: "Penicillin" };
+    }
+    if (name === "Hershel") {
+      return { ...base, notes: "Blood type: O+" };
+    }
+    return base;
+  });
 }
 
 export const KITCHEN_SCHEDULE_WEEKDAYS: KitchenWeekday[] = [
@@ -1849,6 +1858,36 @@ export const initialFamilyData: FamilyData = {
       updatedAt: "2026-05-04T00:00:00.000Z",
       source: "seed",
       body: "Key phone numbers, providers, school office, and local contacts.",
+    },
+    {
+      id: "doc-emergency-gobag",
+      title: "Go-bag location",
+      content: "Hall closet, top shelf",
+      category: "emergency",
+      tags: ["preparedness"],
+      pinned: false,
+      relatedMemberIds: [],
+      relatedProjectId: "",
+      visibility: "household",
+      createdAt: "2026-05-04T00:00:00.000Z",
+      updatedAt: "2026-05-04T00:00:00.000Z",
+      source: "seed",
+      body: "Hall closet, top shelf",
+    },
+    {
+      id: "doc-emergency-water",
+      title: "Water supply",
+      content: "5 gallons (rotate seasonally)",
+      category: "emergency",
+      tags: ["preparedness"],
+      pinned: false,
+      relatedMemberIds: [],
+      relatedProjectId: "",
+      visibility: "household",
+      createdAt: "2026-05-04T00:00:00.000Z",
+      updatedAt: "2026-05-04T00:00:00.000Z",
+      source: "seed",
+      body: "5 gallons (rotate seasonally)",
     },
     {
       id: "doc-3",
