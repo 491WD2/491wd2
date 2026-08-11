@@ -454,3 +454,28 @@ Also extended: `src/lib/calendarActivityStyles.ts` (Travel, No School, Activity,
 - [x] Routes and modules preserved  
 - [x] No meal planning / appointment booking / business scheduling  
 - [x] No fake school calendar dates invented  
+
+---
+
+## Attached Figma Bundle Visual Match
+
+**Status:** Implemented (visible redesign pass)  
+**Reference:** `491WD2_491wd2-app.zip`  
+**Audit:** `ATTACHED_FIGMA_STYLE_AUDIT.md`  
+**Bridge CSS:** `src/styles/figma-reference-style.css`
+
+### What changed visually
+
+- App shell uses soft `#F8F7F5` canvas + `figma-app-shell`
+- Sidebar matches reference mauve active chrome (`#F5E6F1` / `#8B5A7C`), ~256px, sectioned nav
+- Home, Shopping, Pantry, Calendar, Cleaning, Emergency, Messages, Settings use `figma-*` page/card/button/search/list classes
+- Pantry gains Stock-style stat cards + warm low-stock alert
+- Calendar gains segmented list/month controls and mauve today/selected states
+- Collections nav restored (Projects reads FamilyData; Photos/Routines empty shells)
+- Wall display remains available via preview toggle + Account nav
+
+### Constraints kept
+
+- No salon/business copy or mock stock
+- No localStorage key change / clear / FamilyData reset
+- No package.json replacement / MUI

@@ -5,11 +5,12 @@ import {
   BookOpen, Settings, Plus, ScanLine,
   Bell, Search, X, Check, ChevronRight,
   Trash2, AlertCircle, Menu, ChevronDown,
-  Users,
+  Users, List, Image, Layers, RefreshCw,
   Edit2, Archive, ShieldAlert,
   PawPrint, CalendarCheck, Bookmark, Key, FileText,
-  Monitor, Tablet,
+  Monitor, Tablet, AlertTriangle,
 } from 'lucide-react';
+import type { Project } from '../data/familyData';
 import { useFamilyData } from '../hooks/useFamilyData';
 import {
   addChoreTask,
@@ -73,7 +74,9 @@ type PreviewMode = 'desktop' | 'app';
 type View =
   | 'home' | 'messages' | 'calendar' | 'shopping' | 'pantry'
   | 'cleaning' | 'emergency' | 'pets' | 'subscriptions'
-  | 'planner' | 'family' | 'notifications' | 'docs' | 'settings';
+  | 'projects' | 'photos' | 'routines'
+  | 'planner' | 'family' | 'notifications' | 'docs' | 'settings'
+  | 'wall';
 
 const PREVIEW_STORAGE_KEY = '491wd-preview-mode';
 
@@ -90,7 +93,10 @@ type HubContextValue = {
   subscriptions: HubSubscription[];
   notifications: HubNotification[];
   docs: HubDoc[];
+  projects: Project[];
   badges: { messages: number; shopping: number; pantry: number; notifications: number };
+  setPreviewMode?: (mode: PreviewMode) => void;
+  previewMode?: PreviewMode;
   activeMemberId?: string;
   toggleShoppingItem: (id: string) => void;
   deleteShoppingItem: (id: string) => void;
@@ -184,7 +190,7 @@ function Card({ children, className = '', onClick }: { children: React.ReactNode
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-2xl border border-black/[0.06] shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow duration-200' : ''} ${className}`}
+      className={`figma-card ${onClick ? 'figma-card-hover' : ''} ${className}`}
     >
       {children}
     </div>
@@ -202,10 +208,10 @@ function StockBar({ qty, max, status }: { qty: number; max: number; status: stri
 }
 
 function StatusChip({ status }: { status: string }) {
-  if (status === 'out')  return <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">Out</span>;
-  if (status === 'low')  return <span className="text-xs font-semibold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">Low</span>;
-  if (status === 'ok')   return <span className="text-xs font-semibold text-sky-500 bg-sky-50 px-2 py-0.5 rounded-full">OK</span>;
-  return <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Good</span>;
+  if (status === 'out')  return <span className="figma-chip figma-chip-rose">Out</span>;
+  if (status === 'low')  return <span className="figma-chip figma-chip-amber">Low</span>;
+  if (status === 'ok')   return <span className="figma-chip figma-chip-blue">OK</span>;
+  return <span className="figma-chip figma-chip-green">Good</span>;
 }
 
 function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: string; bg: string; size?: 'sm' | 'md' | 'lg' }) {
@@ -218,124 +224,150 @@ function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: stri
   );
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Sidebar (Figma reference mauve chrome) ────────────────────────────────────
 
-const PRIMARY_NAV: NavItem[] = [
-  { id: 'home',          label: 'Home',                icon: Home,          color: '#4F46E5' },
-  { id: 'messages',      label: 'Messages',            icon: MessageSquare, color: '#DB2777' },
-  { id: 'calendar',      label: 'Calendar',            icon: Calendar,      color: '#D97706' },
-  { id: 'shopping',      label: 'Shopping',            icon: ShoppingCart,  color: '#10B981' },
-  { id: 'pantry',        label: 'Pantry & Inventory',  icon: Package,       color: '#84CC16' },
-  { id: 'cleaning',      label: 'Cleaning / Kitchen',  icon: Wrench,        color: '#0EA5E9' },
-  { id: 'emergency',     label: 'Emergency Planning',  icon: ShieldAlert,   color: '#EF4444' },
+const HOME_NAV: NavItem[] = [
+  { id: 'home', label: 'Home', icon: Home, color: '#8B5A7C' },
 ];
 
-const TOOLS_NAV: NavItem[] = [
-  { id: 'pets',          label: 'Pets',                    icon: PawPrint,      color: '#F97316' },
-  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard,  color: '#8B5CF6' },
-  { id: 'planner',       label: 'Planner',                 icon: CalendarCheck, color: '#3B82F6' },
-  { id: 'family',        label: 'Family Members',          icon: Users,         color: '#14B8A6' },
-  { id: 'notifications', label: 'Notifications',           icon: Bell,          color: '#EC4899' },
-  { id: 'docs',          label: 'Docs & Help',             icon: FileText,      color: '#06B6D4' },
+const PLANNING_NAV: NavItem[] = [
+  { id: 'messages', label: 'Messages', icon: MessageSquare, color: '#8B5A7C' },
+  { id: 'calendar', label: 'Calendar', icon: Calendar, color: '#8B5A7C' },
+  { id: 'cleaning', label: 'Cleaning / Kitchen', icon: Wrench, color: '#8B5A7C' },
+  { id: 'emergency', label: 'Emergency Planning', icon: ShieldAlert, color: '#8B5A7C' },
+  { id: 'planner', label: 'Planner', icon: CalendarCheck, color: '#8B5A7C' },
 ];
 
-const SYSTEM_NAV: NavItem[] = [
-  { id: 'settings', label: 'Settings', icon: Settings, color: '#64748B' },
+const HOUSEHOLD_NAV: NavItem[] = [
+  { id: 'shopping', label: 'Shopping', icon: ShoppingCart, color: '#8B5A7C' },
+  { id: 'pantry', label: 'Pantry & Inventory', icon: Package, color: '#8B5A7C' },
+  { id: 'pets', label: 'Pets', icon: PawPrint, color: '#8B5A7C' },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard, color: '#8B5A7C' },
+  { id: 'family', label: 'Family Members', icon: Users, color: '#8B5A7C' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, color: '#8B5A7C' },
+  { id: 'docs', label: 'Docs & Help', icon: FileText, color: '#8B5A7C' },
+];
+
+const COLLECTIONS_NAV: NavItem[] = [
+  { id: 'projects', label: 'Projects', icon: Layers, color: '#8B5A7C' },
+  { id: 'photos', label: 'Photos', icon: Image, color: '#8B5A7C' },
+  { id: 'routines', label: 'Routines', icon: RefreshCw, color: '#8B5A7C' },
+];
+
+const ACCOUNT_NAV: NavItem[] = [
+  { id: 'settings', label: 'Settings', icon: Settings, color: '#8B5A7C' },
+  { id: 'wall', label: 'Wall display', icon: Monitor, color: '#8B5A7C' },
 ];
 
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const { members: FAMILY_MEMBERS, badges, householdName, activeMemberId, setActiveMember } = useHub();
-  const primaryNav = PRIMARY_NAV.map((item) => {
-    if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
-    if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
-    if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
-    return item;
-  });
-  const toolsNav = TOOLS_NAV.map((item) => {
-    if (item.id === 'notifications' && badges.notifications > 0) {
-      return { ...item, badge: badges.notifications };
-    }
-    return item;
-  });
+  const {
+    members: FAMILY_MEMBERS,
+    badges,
+    householdName,
+    activeMemberId,
+    setActiveMember,
+    setPreviewMode,
+  } = useHub();
+
+  const withBadges = (items: NavItem[]) =>
+    items.map((item) => {
+      if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
+      if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
+      if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
+      if (item.id === 'notifications' && badges.notifications > 0) {
+        return { ...item, badge: badges.notifications };
+      }
+      return item;
+    });
+
+  const sections: { label: string; items: NavItem[] }[] = [
+    { label: 'Primary', items: withBadges(HOME_NAV) },
+    { label: 'Planning', items: withBadges(PLANNING_NAV) },
+    { label: 'Household', items: withBadges(HOUSEHOLD_NAV) },
+    { label: 'Collections', items: withBadges(COLLECTIONS_NAV) },
+    { label: 'Account', items: withBadges(ACCOUNT_NAV) },
+  ];
+
+  const activeMember = FAMILY_MEMBERS.find((m) => m.id === activeMemberId) || FAMILY_MEMBERS[0];
+
   function NavLink({ item }: { item: NavItem }) {
-    const active = current === item.id;
+    const active = current === item.id || (item.id === 'wall' && current === 'home' && false);
     const Icon = item.icon;
     return (
       <button
-        onClick={() => onChange(item.id)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative
-          ${active ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`}
-        style={active ? { backgroundColor: item.color } : {}}
+        type="button"
+        onClick={() => {
+          if (item.id === 'wall') {
+            setPreviewMode?.('app');
+            onChange('home');
+            return;
+          }
+          onChange(item.id);
+        }}
+        className={`figma-sidebar-item ${active ? 'figma-sidebar-item-active' : ''}`}
         title={collapsed ? item.label : undefined}
       >
-        <Icon size={18} className="flex-shrink-0" style={active ? { color: '#fff' } : { color: item.color }} />
-        {!collapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
-        {!collapsed && item.badge && !active && (
-          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
-            style={{ backgroundColor: item.color + '18', color: item.color }}>
-            {item.badge}
-          </span>
+        <Icon size={20} className="flex-shrink-0" />
+        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+        {!collapsed && item.badge != null && item.badge > 0 && !active && (
+          <span className="figma-chip figma-chip-mauve">{item.badge}</span>
         )}
-        {collapsed && item.badge && !active && (
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+        {collapsed && item.badge != null && item.badge > 0 && !active && (
+          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#8B5A7C]" />
         )}
       </button>
     );
   }
 
   return (
-    <aside
-      className="flex h-full flex-col flex-shrink-0 overflow-hidden border-r border-black/[0.06] bg-white transition-all duration-300"
-      style={{ width: collapsed ? '64px' : '240px' }}
-    >
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-black/[0.06]">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-          <Home size={16} className="text-white" />
+    <aside className={`figma-sidebar ${collapsed ? 'is-collapsed' : ''}`}>
+      <div className="figma-sidebar-brand flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          {!collapsed ? (
+            <>
+              <div className="figma-sidebar-brand-title">FamilyHub</div>
+              <div className="figma-sidebar-brand-sub truncate">{householdName}</div>
+            </>
+          ) : (
+            <div className="figma-sidebar-avatar mx-auto">FH</div>
+          )}
         </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <div className="font-semibold text-stone-900 text-sm leading-tight truncate">{householdName}</div>
-            <div className="text-xs text-stone-400 leading-tight">Household Command</div>
-          </div>
-        )}
-        <button onClick={onToggle} className="ml-auto text-stone-400 hover:text-stone-700 transition-colors flex-shrink-0">
-          <Menu size={16} />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-[#9CA3AF] hover:text-[#111827] transition-colors flex-shrink-0 p-1"
+          aria-label="Toggle sidebar"
+        >
+          <Menu size={18} />
         </button>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        <div>
-          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Primary</div>}
-          <div className="space-y-0.5">
-            {primaryNav.map(item => <NavLink key={item.id} item={item} />)}
+      <nav className="figma-sidebar-nav">
+        {sections.map((section) => (
+          <div key={section.label} className="figma-sidebar-section">
+            {!collapsed && <div className="figma-sidebar-section-label">{section.label}</div>}
+            {section.items.map((item) => (
+              <NavLink key={item.id} item={item} />
+            ))}
           </div>
-        </div>
-        <div>
-          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Household Tools</div>}
-          <div className="space-y-0.5">
-            {toolsNav.map(item => <NavLink key={item.id} item={item} />)}
-          </div>
-        </div>
-        <div>
-          {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">System</div>}
-          <div className="space-y-0.5">
-            {SYSTEM_NAV.map(item => <NavLink key={item.id} item={item} />)}
-          </div>
-        </div>
+        ))}
       </nav>
 
-      {/* Family avatars — tap to set who is using this device */}
       {!collapsed && (
-        <div className="px-4 py-4 border-t border-black/[0.06]">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 mb-2">
-            Using this device
+        <div className="figma-sidebar-footer">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="figma-sidebar-avatar">
+              {(activeMember?.name || 'F').slice(0, 1)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-[#111827] truncate">{activeMember?.name || 'Family'}</p>
+              <p className="text-xs text-[#9CA3AF]">Using this device</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {FAMILY_MEMBERS.map(m => {
+            {FAMILY_MEMBERS.map((m) => {
               const active = m.id === activeMemberId;
               return (
                 <button
@@ -343,7 +375,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
                   type="button"
                   title={`Switch to ${m.name}`}
                   onClick={() => setActiveMember(m.id)}
-                  className={`rounded-full transition-all ${active ? 'ring-2 ring-offset-1 ring-indigo-500' : 'opacity-80 hover:opacity-100'}`}
+                  className={`rounded-full transition-all ${active ? 'ring-2 ring-offset-1 ring-[#8B5A7C]' : 'opacity-80 hover:opacity-100'}`}
                 >
                   <MemberDot name={m.name} color={m.color} bg={m.bg} size="sm" />
                 </button>
@@ -436,12 +468,10 @@ function Clock() {
   return (
     <div>
       <div className="flex items-end gap-2 leading-none">
-        <span className="text-6xl lg:text-7xl font-light text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', serif" }}>
-          {h}:{m}
-        </span>
-        <span className="text-xl font-light text-stone-500 mb-2" style={{ fontFamily: "'Fraunces', serif" }}>{ampm}</span>
+        <span className="figma-home-clock">{h}:{m}</span>
+        <span className="figma-home-clock-ampm">{ampm}</span>
       </div>
-      <div className="text-stone-500 text-sm mt-1">{day}, {date}</div>
+      <div className="text-[var(--text-muted)] text-sm mt-2">{day}, {date}</div>
     </div>
   );
 }
@@ -490,33 +520,36 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
   const activeName = FAMILY_MEMBERS.find(m => m.id === activeMemberId)?.name;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header: clock + live today summary */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <Clock />
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 font-medium">
-            {todayChores.length} chores today
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">
-            {todayEvents.length} events today
-          </span>
+    <div className="figma-page space-y-6">
+      <div className="figma-page-header">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] mb-2">Family Hub</p>
+          <h1 className="figma-page-title">Home</h1>
+          <p className="figma-page-subtitle">Household command center for today</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="figma-chip figma-chip-blue">{todayChores.length} chores today</span>
+          <span className="figma-chip figma-chip-amber">{todayEvents.length} events today</span>
           {petAlerts.length > 0 && (
-            <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 font-medium">
-              {petAlerts.length} pet med alerts
-            </span>
+            <span className="figma-chip figma-chip-rose">{petAlerts.length} pet med alerts</span>
           )}
           {activeName && (
-            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-medium">
-              Signed in as {activeName}
-            </span>
+            <span className="figma-chip figma-chip-mauve">Signed in as {activeName}</span>
           )}
         </div>
       </div>
 
-      {/* Family member buttons */}
+      <Card className="p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <Clock />
+          <div className="text-sm text-[var(--text-muted)] max-w-xs sm:text-right">
+            Soft mauve dashboard for planning, shopping, pantry, and chores — live household data.
+          </div>
+        </div>
+      </Card>
+
       <div>
-        <div className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-3">Who's checking in?</div>
+        <div className="figma-sidebar-section-label mb-3">Who's checking in?</div>
         <div className="flex gap-3 flex-wrap">
           {FAMILY_MEMBERS.map(m => {
             const active = m.id === activeMemberId;
@@ -525,13 +558,10 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
                 key={m.id}
                 type="button"
                 onClick={() => setActiveMember(m.id)}
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border transition-all duration-150 hover:shadow-md active:scale-95 ${
-                  active ? 'ring-2 ring-offset-1 ring-indigo-500' : ''
-                }`}
-                style={{ borderColor: m.color + '30', backgroundColor: m.bg }}
+                className={`figma-checkin ${active ? 'is-active' : ''}`}
               >
-                <MemberDot name={m.name} color={m.color} bg="transparent" size="sm" />
-                <span className="font-medium text-sm" style={{ color: m.color }}>{m.name}</span>
+                <MemberDot name={m.name} color="#8B5A7C" bg="#F5E6F1" size="sm" />
+                <span>{m.name}</span>
               </button>
             );
           })}
@@ -572,32 +602,23 @@ function HomeView({ onNavigate, onQuickAdd, shoppingItems, pantryItems, chores, 
         </Card>
       )}
 
-      {/* Quick Add */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => onQuickAdd('shopping')}
-          className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
-          style={{ backgroundColor: '#10B981' }}
-        >
-          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button type="button" onClick={() => onQuickAdd('shopping')} className="figma-button-primary justify-start px-5 py-4 rounded-[22px]">
+          <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
             <Plus size={18} />
           </div>
           <div className="text-left">
-            <div className="font-semibold">Add to Shopping</div>
-            <div className="text-xs text-white/70">{unchecked.length} items in list</div>
+            <div>Add to Shopping</div>
+            <div className="text-xs text-white/75 font-normal">{unchecked.length} items in list</div>
           </div>
         </button>
-        <button
-          onClick={() => onQuickAdd('pantry')}
-          className="flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 hover:shadow-lg active:scale-98"
-          style={{ backgroundColor: '#6D9C0E' }}
-        >
-          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
+        <button type="button" onClick={() => onQuickAdd('pantry')} className="figma-button-secondary justify-start px-5 py-4 rounded-[22px]">
+          <div className="figma-icon-tile !w-9 !h-9">
             <Plus size={18} />
           </div>
           <div className="text-left">
             <div className="font-semibold">Add to Inventory</div>
-            <div className="text-xs text-white/70">{alerts.length} items need attention</div>
+            <div className="text-xs text-[var(--text-muted)]">{alerts.length} items need attention</div>
           </div>
         </button>
       </div>
@@ -808,34 +829,32 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
-        <div className="flex items-center justify-between mb-4">
+    <div className="h-full flex flex-col bg-[var(--app-bg)]">
+      <div className="px-8 pt-8 pb-5 border-b border-[var(--border-soft)] bg-white/70 backdrop-blur-sm">
+        <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900">Shopping</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{unchecked.filter(i=>!i.checked).length} items remaining</p>
+            <h1 className="figma-page-title">Shopping</h1>
+            <p className="figma-page-subtitle">{unchecked.filter(i=>!i.checked).length} items remaining on the household list</p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
-              <ScanLine size={15} />
+            <button type="button" className="figma-button-secondary">
+              <ScanLine size={16} />
               <span className="hidden sm:inline">Scan</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
-              <Users size={15} />
+            <button type="button" className="figma-button-secondary">
+              <Users size={16} />
               <span className="hidden sm:inline">Share</span>
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 bg-stone-100 p-1 rounded-xl w-fit">
+        <div className="figma-segmented">
           {(['current','saved','shared'] as const).map(t => (
             <button
               key={t}
+              type="button"
               onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all
-                ${tab === t ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+              className={tab === t ? 'is-active' : ''}
             >
               {t === 'current' ? 'Current List' : t === 'saved' ? 'Saved Lists' : 'Shared List'}
             </button>
@@ -843,38 +862,34 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-8">
         {tab === 'current' && (
-          <div className="max-w-2xl">
-            {/* Quick add bar */}
-            <form onSubmit={handleAdd} className="flex gap-2 mb-5">
+          <div className="max-w-3xl space-y-5">
+            <form onSubmit={handleAdd} className="flex flex-wrap gap-2">
               <input
                 value={newItem}
                 onChange={e => setNewItem(e.target.value)}
                 placeholder="Add item…"
-                className="flex-1 px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="flex-1 min-w-[180px] px-4 py-3.5 bg-white border border-[var(--border-input)] rounded-[18px] text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-mauve)]"
               />
               <input
                 value={newQty}
                 onChange={e => setNewQty(e.target.value)}
                 placeholder="Qty"
-                className="w-24 px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-28 px-3 py-3.5 bg-white border border-[var(--border-input)] rounded-[18px] text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-mauve)]"
               />
-              <button type="submit" className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center gap-1">
-                <Plus size={16} /> Add
+              <button type="submit" className="figma-button-primary">
+                <Plus size={16} /> Add item
               </button>
             </form>
 
-            {/* Search + filter */}
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <div className="flex gap-2 flex-wrap">
+              <div className="figma-search flex-1 min-w-[200px]">
+                <Search size={18} />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search items…"
-                  className="w-full pl-9 pr-4 py-2 bg-white border border-stone-200 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
               <div className="relative">
@@ -897,10 +912,10 @@ function ShoppingView({ items, onToggle, onDelete, onAdd }: {
                 const member = FAMILY_MEMBERS.find(m => m.name === item.addedBy);
                 return (
                   <div key={item.id}
-                    className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-stone-100 hover:border-stone-200 group transition-all">
+                    className="figma-list-row group">
                     <button
                       onClick={() => onToggle(item.id)}
-                      className="w-5 h-5 rounded-full border-2 border-stone-300 flex items-center justify-center flex-shrink-0 hover:border-emerald-500 transition-colors"
+                      className="w-5 h-5 rounded-full border-2 border-[#D1D5DB] flex items-center justify-center flex-shrink-0 hover:border-[var(--accent-mauve)] transition-colors"
                     />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-stone-800">{item.name}</span>
@@ -1040,35 +1055,41 @@ function PantryView({ items, onUpdateStock, onAdd }: {
   ] as const;
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 pt-6 pb-4 bg-white border-b border-stone-100">
-        <div className="flex items-center justify-between mb-4">
+    <div className="h-full flex flex-col bg-[var(--app-bg)]">
+      <div className="px-8 pt-8 pb-5 border-b border-[var(--border-soft)] bg-white/70 backdrop-blur-sm">
+        <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900">Pantry & Inventory</h1>
-            <p className="text-sm text-stone-500 mt-0.5">
+            <h1 className="figma-page-title">Pantry & Inventory</h1>
+            <p className="figma-page-subtitle">
               {items.length} items · {storagePlaces.length} storage places
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAddPlace((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
-            >
-              <Plus size={15} />
+            <button type="button" onClick={() => setShowAddPlace((v) => !v)} className="figma-button-secondary">
+              <Plus size={16} />
               <span className="hidden sm:inline">Add place</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setShowAddItem((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: '#6D9C0E' }}
-            >
-              <Plus size={15} />
+            <button type="button" onClick={() => setShowAddItem((v) => !v)} className="figma-button-primary">
+              <Plus size={16} />
               <span className="hidden sm:inline">Add Item</span>
             </button>
           </div>
         </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Items</div><div className="text-2xl font-semibold">{items.length}</div></div>
+          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Places</div><div className="text-2xl font-semibold">{storagePlaces.length}</div></div>
+          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Low</div><div className="text-2xl font-semibold text-[var(--alert-warm-text)]">{lowCount}</div></div>
+          <div className="figma-stat-card"><div className="text-xs text-[var(--text-muted)] mb-1">Out</div><div className="text-2xl font-semibold text-[#9D174D]">{outCount}</div></div>
+        </div>
+        {(outCount + lowCount) > 0 && (
+          <div className="figma-alert-warm mb-5 flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="font-semibold text-[var(--alert-warm-text)]">Low stock alert</div>
+              <p className="text-sm text-[var(--text-soft)] mt-0.5">{outCount + lowCount} items need attention in pantry inventory</p>
+            </div>
+          </div>
+        )}
 
         {showAddPlace && (
           <form
@@ -1087,7 +1108,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
               placeholder="New storage place (e.g. Garage shelf, Basement bin)"
               className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
             />
-            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-[var(--accent-mauve)]">
               Save place
             </button>
           </form>
@@ -1126,7 +1147,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                 <option key={p.id} value={p.name}>{p.name}</option>
               ))}
             </select>
-            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-lime-700">
+            <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-[var(--accent-mauve)]">
               Save item
             </button>
           </form>
@@ -1139,7 +1160,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
               type="button"
               onClick={() => setPlaceFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                placeFilter === 'all' ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
+                placeFilter === 'all' ? 'bg-[var(--accent-mauve)] text-white' : 'bg-stone-100 text-stone-600'
               }`}
             >
               All places
@@ -1150,7 +1171,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                 type="button"
                 onClick={() => setPlaceFilter(p.name)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  placeFilter === p.name ? 'bg-lime-700 text-white' : 'bg-stone-100 text-stone-600'
+                  placeFilter === p.name ? 'bg-[var(--accent-mauve)] text-white' : 'bg-stone-100 text-stone-600'
                 }`}
               >
                 {p.name}
@@ -1180,7 +1201,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search inventory…"
-              className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:bg-white"
+              className="w-full pl-8 pr-4 py-2 bg-stone-100 border border-transparent rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:border-[var(--accent-mauve)] focus:bg-white"
             />
           </div>
         </div>
@@ -1189,12 +1210,11 @@ function PantryView({ items, onUpdateStock, onAdd }: {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl space-y-1.5">
           {filtered.map(item => {
-            const catColor = CATEGORY_COLORS[item.category] || '#94a3b8';
             return (
               <div key={item.id}
-                className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center gap-4 hover:border-stone-200 group transition-all">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: catColor + '18' }}>
-                  <Package size={14} style={{ color: catColor }} />
+                className="figma-list-row group">
+                <div className={`figma-icon-tile !w-14 !h-14 ${item.status === 'out' || item.status === 'low' ? 'is-alert' : ''}`}>
+                  <Package size={22} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1222,8 +1242,7 @@ function PantryView({ items, onUpdateStock, onAdd }: {
                 <StatusChip status={item.status} />
                 <button
                   onClick={() => onUpdateStock(item.id, item.qty + 1)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium text-white flex-shrink-0"
-                  style={{ backgroundColor: catColor }}
+                  className="figma-button-primary !text-xs !px-3 !py-1.5 !rounded-lg flex-shrink-0"
                 >
                   + Stock
                 </button>
@@ -1255,12 +1274,12 @@ function MessagesView() {
   return (
     <div className="h-full flex">
       <div className="w-72 border-r border-stone-100 bg-white flex flex-col flex-shrink-0">
-        <div className="px-4 pt-5 pb-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Messages</h2>
-          <p className="text-xs text-stone-500 mt-1">Family board · {unread} unread</p>
+        <div className="px-5 pt-6 pb-4 border-b border-[var(--border-soft)]">
+          <h2 className="figma-page-title !text-2xl">Messages</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Family board · {unread} unread</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <div className="w-full px-4 py-3.5 flex items-center gap-3 bg-indigo-50 border-b border-stone-50">
+          <div className="w-full px-4 py-3.5 flex items-center gap-3 bg-[var(--accent-mauve-soft)] border-b border-[var(--border-soft)]">
             <div className="flex -space-x-1.5 flex-shrink-0">
               {FAMILY_MEMBERS.slice(0, 2).map(m => <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />)}
             </div>
@@ -1350,6 +1369,7 @@ function CalendarView() {
     return new Date(t.getFullYear(), t.getMonth(), 1);
   });
   const [selectedIso, setSelectedIso] = useState(todayIsoLocal());
+  const [viewMode, setViewMode] = useState<'list' | 'month'>('month');
 
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const todayIso = todayIsoLocal();
@@ -1362,98 +1382,120 @@ function CalendarView() {
 
   const upcoming = EVENTS.filter((e) => e.dateIso >= todayIso).slice(0, 12);
   const selectedEvents = EVENTS.filter((e) => e.dateIso === selectedIso);
+  const todayEventsList = EVENTS.filter((e) => e.dateIso === todayIso);
 
   return (
-    <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Calendar</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
-          >
-            ‹
-          </button>
-          <span className="text-sm font-medium text-stone-900 px-2">{monthName}</span>
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="p-2 rounded-xl hover:bg-stone-100 transition-colors text-stone-600"
-          >
-            ›
-          </button>
+    <div className="figma-page max-w-6xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">{viewMode === 'list' ? "Today's Schedule" : 'Calendar'}</h1>
+          <p className="figma-page-subtitle">{monthName} · family schedule</p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="figma-segmented">
+            <button type="button" className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')} title="List"><List size={18} /></button>
+            <button type="button" className={viewMode === 'month' ? 'is-active' : ''} onClick={() => setViewMode('month')} title="Month"><Calendar size={18} /></button>
+          </div>
+          <div className="figma-segmented">
+            <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
+            <button type="button" className="is-active px-3">{monthName}</button>
+            <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
+          </div>
+          <button type="button" onClick={() => setShowAdd((v) => !v)} className="figma-button-primary"><Plus size={16} /> Add event</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card className="p-5">
-            <div className="grid grid-cols-7 mb-2">
-              {days.map((d) => (
-                <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: startDay }).map((_, i) => (
-                <div key={`e-${i}`} />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
-                const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isToday = iso === todayIso;
-                const isSelected = iso === selectedIso;
-                const dayEvents = EVENTS.filter((e) => e.dateIso === iso);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      setSelectedIso(iso);
-                      setEventDate(iso);
-                    }}
-                    className={`aspect-square flex flex-col items-center justify-center rounded-xl text-sm transition-all
-                      ${isToday ? 'bg-indigo-600 text-white font-semibold' : isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-stone-100 text-stone-700'}`}
-                  >
-                    {day}
-                    {dayEvents.length > 0 && (
-                      <div className="flex gap-0.5 mt-0.5">
-                        {dayEvents.slice(0, 3).map((e) => (
-                          <div
-                            key={e.id}
-                            className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : ''}`}
-                            style={isToday ? undefined : { backgroundColor: e.color }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-          {selectedEvents.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">
-                {selectedIso === todayIso ? 'Today' : selectedIso}
-              </div>
-              {selectedEvents.map((evt) => (
-                <Card key={evt.id} className="p-3 flex items-center gap-3">
-                  <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-stone-800 truncate">{evt.title}</div>
-                    <div className="text-xs text-stone-400">{evt.time} · {evt.who}</div>
+          {viewMode === 'list' ? (
+            <div className="space-y-3">
+              {(todayEventsList.length ? todayEventsList : upcoming.slice(0, 6)).map((evt) => (
+                <div key={evt.id} className="figma-list-row">
+                  <div className="figma-icon-tile !w-12 !h-12">
+                    <Calendar size={20} />
                   </div>
-                </Card>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[var(--text-main)] truncate">{evt.title}</div>
+                    <div className="text-sm text-[var(--text-muted)] mt-0.5">{evt.date} · {evt.time} · {evt.who}</div>
+                  </div>
+                  <span className="figma-chip figma-chip-mauve">Household</span>
+                </div>
               ))}
+              {todayEventsList.length === 0 && upcoming.length === 0 && (
+                <div className="figma-empty">No family events scheduled yet.</div>
+              )}
             </div>
+          ) : (
+            <>
+              <Card className="p-6">
+                <div className="grid grid-cols-7 mb-2">
+                  {days.map((d) => (
+                    <div key={d} className="text-center text-xs font-semibold text-[var(--text-muted)] py-1">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: startDay }).map((_, i) => (
+                    <div key={`e-${i}`} />
+                  ))}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isToday = iso === todayIso;
+                    const isSelected = iso === selectedIso;
+                    const dayEvents = EVENTS.filter((e) => e.dateIso === iso);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          setSelectedIso(iso);
+                          setEventDate(iso);
+                        }}
+                        className={`aspect-square flex flex-col items-center justify-center rounded-2xl text-sm transition-all
+                          ${isToday ? 'figma-cal-today' : isSelected ? 'figma-cal-selected' : 'hover:bg-[#F9FAFB] text-[var(--text-soft)]'}`}
+                      >
+                        {day}
+                        {dayEvents.length > 0 && (
+                          <div className="flex gap-0.5 mt-0.5">
+                            {dayEvents.slice(0, 3).map((e) => (
+                              <div
+                                key={e.id}
+                                className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : ''}`}
+                                style={isToday ? undefined : { backgroundColor: e.color }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+              {selectedEvents.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {selectedIso === todayIso ? 'Today' : selectedIso}
+                  </div>
+                  {selectedEvents.map((evt) => (
+                    <Card key={evt.id} className="p-4 flex items-center gap-3">
+                      <div className="w-1 h-8 rounded-full" style={{ backgroundColor: evt.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-[var(--text-main)] truncate">{evt.title}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{evt.time} · {evt.who}</div>
+                      </div>
+                      <span className="figma-chip figma-chip-blue">Activity</span>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-stone-900">Upcoming</h3>
-            <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
+            <h3 className="font-semibold text-[var(--text-main)]">Upcoming</h3>
+            <button type="button" onClick={() => setShowAdd((v) => !v)} className="flex items-center gap-1 text-xs text-[var(--accent-mauve)] font-medium">
               <Plus size={12} /> Add event
             </button>
           </div>
@@ -1483,7 +1525,7 @@ function CalendarView() {
                   <option value="">Family</option>
                   {FAMILY_MEMBERS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
-                <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600">Save</button>
+                <button type="submit" className="figma-button-primary !py-2 !px-3 !rounded-xl">Save</button>
               </div>
             </form>
           )}
@@ -1523,15 +1565,14 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
   const upcoming = chores.filter(c => c.due !== 'Today');
 
   return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-stone-900">Cleaning & Kitchen</h1>
-        <button
-          type="button"
-          onClick={() => setShowAdd((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 transition-colors"
-        >
-          <Plus size={15} /> Add Chore
+    <div className="figma-page max-w-3xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">Cleaning & Kitchen</h1>
+          <p className="figma-page-subtitle">Today and upcoming household chores</p>
+        </div>
+        <button type="button" onClick={() => setShowAdd((v) => !v)} className="figma-button-primary">
+          <Plus size={16} /> Add Chore
         </button>
       </div>
       {showAdd && (
@@ -1560,7 +1601,7 @@ function CleaningView({ chores, onToggle }: { chores: HubChore[]; onToggle: (id:
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
-          <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-sky-500">Save</button>
+          <button type="submit" className="figma-button-primary !py-2 !px-3">Save</button>
         </form>
       )}
 
@@ -1644,9 +1685,9 @@ function EmergencyView() {
   );
 
   return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-semibold text-stone-900">Emergency Planning</h1>
+    <div className="figma-page max-w-3xl">
+      <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+        <h1 className="figma-page-title">Emergency Planning</h1>
         <button
           type="button"
           onClick={() => setShowAdd((v) => !v)}
@@ -2308,6 +2349,77 @@ function DocsView() {
   );
 }
 
+
+// ── Collections (read-only FamilyData views; style-only shell) ────────────────
+
+function ProjectsView() {
+  const { projects } = useHub();
+  return (
+    <div className="figma-page max-w-4xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">Projects</h1>
+          <p className="figma-page-subtitle">Household projects from your saved FamilyData</p>
+        </div>
+      </div>
+      {projects.length === 0 ? (
+        <div className="figma-empty">No projects yet — existing data is preserved when you add some.</div>
+      ) : (
+        <div className="grid gap-4">
+          {projects.map((p) => (
+            <div key={p.id} className="figma-card p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--text-main)]">{p.name || p.title}</h3>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">{p.description || p.nextStep || 'Household project'}</p>
+                </div>
+                <span className="figma-chip figma-chip-mauve">{p.status}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--text-soft)]">
+                {p.lead ? <span className="figma-chip">Lead: {p.lead}</span> : null}
+                {p.targetDate ? <span className="figma-chip figma-chip-amber">Due {p.targetDate}</span> : null}
+                {p.priority ? <span className="figma-chip figma-chip-blue">{p.priority}</span> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhotosView() {
+  return (
+    <div className="figma-page max-w-3xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">Photos</h1>
+          <p className="figma-page-subtitle">Household photo collection</p>
+        </div>
+      </div>
+      <div className="figma-empty">
+        No photo gallery items are loaded in this shell yet. Existing FamilyData is untouched.
+      </div>
+    </div>
+  );
+}
+
+function RoutinesView() {
+  return (
+    <div className="figma-page max-w-3xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">Routines</h1>
+          <p className="figma-page-subtitle">Daily and weekly household routines</p>
+        </div>
+      </div>
+      <div className="figma-empty">
+        No routines surface in this shell yet. Existing FamilyData is untouched.
+      </div>
+    </div>
+  );
+}
+
 // ── Settings Page ─────────────────────────────────────────────────────────────
 
 function SettingsView() {
@@ -2317,19 +2429,24 @@ function SettingsView() {
   const activeName = members.find((m) => m.id === activeMemberId)?.name || 'Not set';
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-semibold text-stone-900 mb-6">Settings</h1>
+    <div className="figma-page max-w-2xl">
+      <div className="figma-page-header">
+        <div>
+          <h1 className="figma-page-title">Settings</h1>
+          <p className="figma-page-subtitle">Household preferences and device identity</p>
+        </div>
+      </div>
       <div className="space-y-6">
         <div>
-          <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Household</div>
-          <Card className="p-5 space-y-4">
+          <div className="figma-sidebar-section-label mb-2">Household</div>
+          <Card className="p-6 space-y-4">
             <div>
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1 block">Household name</label>
+              <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-1 block">Household name</label>
               <div className="flex gap-2">
                 <input
                   value={nameDraft}
                   onChange={(e) => { setNameDraft(e.target.value); setSaved(false); }}
-                  className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm"
+                  className="flex-1 px-4 py-3 rounded-[18px] border border-[var(--border-input)] text-sm focus:outline-none focus:border-[var(--accent-mauve)]"
                 />
                 <button
                   type="button"
@@ -2337,7 +2454,7 @@ function SettingsView() {
                     setHouseholdName(nameDraft);
                     setSaved(true);
                   }}
-                  className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600"
+                  className="figma-button-primary"
                 >
                   Save
                 </button>
@@ -2485,6 +2602,9 @@ export default function App() {
       subscriptions: mapHubSubscriptions(vault, data),
       notifications,
       docs: mapHubDocs(data),
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      setPreviewMode,
+      previewMode,
       badges: {
         messages: messages.filter((m) => !m.read).length,
         shopping: shoppingItems.filter((i) => !i.checked).length,
@@ -2535,7 +2655,7 @@ export default function App() {
       setHouseholdName: (name) => setData((prev) => updateHouseholdName(prev, name)),
       navigate: setView,
     };
-  }, [data, vault]);
+  }, [data, vault, previewMode]);
 
   useEffect(() => {
     try {
@@ -2608,20 +2728,37 @@ export default function App() {
         return <NotificationsView />;
       case 'docs':
         return <DocsView />;
+      case 'projects':
+        return <ProjectsView />;
+      case 'photos':
+        return <PhotosView />;
+      case 'routines':
+        return <RoutinesView />;
+      case 'wall':
+        return (
+          <HomeView
+            onNavigate={setView}
+            onQuickAdd={setQuickAddMode}
+            shoppingItems={hub.shoppingItems}
+            pantryItems={hub.pantryItems}
+            chores={hub.chores}
+            onToggleChore={hub.toggleChore}
+          />
+        );
       case 'settings':
         return <SettingsView />;
     }
   };
 
   const shell = (
-    <div className="flex h-full min-h-0 overflow-hidden bg-[#F8F6F2]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="figma-app-shell">
       <Sidebar
         current={view}
         onChange={setView}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((p) => !p)}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-stone-200">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         {renderView()}
       </main>
 
