@@ -4,8 +4,6 @@ import type {
   HouseholdNotification,
   MessageBoardItem,
   PantryItem,
-  Pet,
-  PlannerEvent,
   ShoppingItem,
   Task,
   DocItem,
@@ -14,9 +12,14 @@ import { WAKE_PAGE_MEMBER_DISPLAY_ORDER } from "../data/familyData";
 import { getMemberColor } from "../lib/memberColors";
 import { getMemberFullName } from "../lib/utils";
 import {
-  readSubscriptionAccount,
-  type SubscriptionAccountRecord,
-} from "../lib/subscriptionAccountStorage";
+  addVaultPassword,
+  addVaultSubscription,
+  readHouseholdVault,
+  writeHouseholdVault,
+  type HouseholdVault,
+  type VaultPassword,
+  type VaultSubscription,
+} from "../lib/householdVaultStorage";
 
 export type HubMember = {
   id: string;
@@ -320,78 +323,38 @@ export function mapHubDocs(data: FamilyData): HubDoc[] {
   }));
 }
 
-const FALLBACK_SUBS: HubSubscription[] = [
-  { id: "1", name: "Netflix", amount: 22.99, cycle: "Monthly", due: "Aug 15", color: "#EF4444" },
-  { id: "2", name: "Spotify Family", amount: 16.99, cycle: "Monthly", due: "Aug 18", color: "#10B981" },
-  { id: "3", name: "Amazon Prime", amount: 139, cycle: "Yearly", due: "Nov 3", color: "#F59E0B" },
-];
-
-const FALLBACK_PASSWORDS: HubPassword[] = [
-  {
-    id: "1",
-    label: "Home Wi‑Fi",
-    username: "491WD2-Family",
-    hint: "Router card in kitchen drawer",
-    color: "#4F46E5",
-  },
-  {
-    id: "2",
-    label: "Streaming PIN",
-    username: "Kids profile",
-    hint: "Ask parent for code",
-    color: "#EC4899",
-  },
-];
-
-function parseMoney(raw: string): number {
-  const n = Number.parseFloat(raw.replace(/[^\d.]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+export function mapHubSubscriptions(vault: HouseholdVault): HubSubscription[] {
+  return vault.subscriptions.map((s: VaultSubscription) => ({ ...s }));
 }
 
-export function mapHubSubscriptions(): HubSubscription[] {
-  const account = readSubscriptionAccount();
-  if (!account.subscriptionServiceName.trim()) {
-    return FALLBACK_SUBS;
-  }
-  const monthly = parseMoney(account.monthlyCost);
-  const yearly = parseMoney(account.yearlyCost);
-  const amount =
-    account.billingCycle === "yearly"
-      ? yearly || monthly
-      : monthly || yearly;
-  return [
-    {
-      id: "sub-account-1",
-      name: account.subscriptionServiceName,
-      amount,
-      cycle:
-        account.billingCycle === "yearly"
-          ? "Yearly"
-          : account.billingCycle === "quarterly"
-            ? "Quarterly"
-            : "Monthly",
-      due: account.renewalDate
-        ? formatDueLabel(account.renewalDate)
-        : "Soon",
-      color: "#8B5CF6",
-    },
-    ...FALLBACK_SUBS,
-  ];
+export function mapHubPasswords(vault: HouseholdVault): HubPassword[] {
+  return vault.passwords.map((p: VaultPassword) => ({ ...p }));
 }
 
-export function mapHubPasswords(): HubPassword[] {
-  const account = readSubscriptionAccount();
-  if (!account.subscriptionServiceName.trim() && !account.signInEmailOrUsername.trim()) {
-    return FALLBACK_PASSWORDS;
-  }
-  const fromAccount: HubPassword = {
-    id: "pw-account-1",
-    label: account.subscriptionServiceName || "Subscription login",
-    username: account.signInEmailOrUsername || "—",
-    hint: account.passwordHint || account.notes || "Stored on this device",
-    color: "#8B5CF6",
+export function postFamilyMessage(
+  data: FamilyData,
+  text: string,
+  authorMemberId?: string,
+): FamilyData {
+  const now = new Date().toISOString();
+  const trimmed = text.trim();
+  if (!trimmed) return data;
+  const item: MessageBoardItem = {
+    id: `msg-${Date.now()}`,
+    title: trimmed.slice(0, 48),
+    message: trimmed,
+    category: "family",
+    colorKey: "blue",
+    priority: "normal",
+    pinned: false,
+    authorMemberId,
+    createdAt: now,
+    updatedAt: now,
   };
-  return [fromAccount, ...FALLBACK_PASSWORDS];
+  return {
+    ...data,
+    messageBoard: [item, ...data.messageBoard],
+  };
 }
 
 export function toggleShoppingPurchased(
@@ -512,11 +475,5 @@ export function toggleChoreDone(data: FamilyData, id: string): FamilyData {
   };
 }
 
-/** Re-export types used only for typing in views. */
-export type {
-  FamilyData,
-  MessageBoardItem,
-  PlannerEvent,
-  Pet,
-  SubscriptionAccountRecord,
-};
+export { readHouseholdVault, writeHouseholdVault, addVaultSubscription, addVaultPassword };
+export type { HouseholdVault, FamilyData };

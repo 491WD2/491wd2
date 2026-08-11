@@ -14,6 +14,8 @@ import { useFamilyData } from '../hooks/useFamilyData';
 import {
   addPantryItem as bridgeAddPantry,
   addShoppingItem as bridgeAddShopping,
+  addVaultPassword,
+  addVaultSubscription,
   deleteShoppingItem as bridgeDeleteShopping,
   mapHubChores,
   mapHubDocs,
@@ -26,9 +28,12 @@ import {
   mapHubPets,
   mapHubShopping,
   mapHubSubscriptions,
+  postFamilyMessage,
+  readHouseholdVault,
   toggleChoreDone as bridgeToggleChore,
   toggleShoppingPurchased,
   updatePantryQuantity,
+  writeHouseholdVault,
   type HubChore,
   type HubDoc,
   type HubEvent,
@@ -65,12 +70,16 @@ type HubContextValue = {
   passwords: HubPassword[];
   notifications: HubNotification[];
   docs: HubDoc[];
+  badges: { messages: number; shopping: number; pantry: number };
   toggleShoppingItem: (id: string) => void;
   deleteShoppingItem: (id: string) => void;
   addShoppingItem: (name: string, qty: string) => void;
   updatePantryStock: (id: string, qty: number) => void;
   addPantryItem: (name: string, qty: string) => void;
   toggleChore: (id: string) => void;
+  postMessage: (text: string) => void;
+  addSubscription: (name: string, amount: number) => void;
+  addPassword: (label: string, username: string, hint: string) => void;
 };
 
 const HubContext = createContext<HubContextValue | null>(null);
@@ -183,10 +192,10 @@ function MemberDot({ name, color, bg, size = 'md' }: { name: string; color: stri
 
 const PRIMARY_NAV: NavItem[] = [
   { id: 'home',          label: 'Home',                icon: Home,          color: '#4F46E5' },
-  { id: 'messages',      label: 'Messages',            icon: MessageSquare, color: '#DB2777', badge: 2 },
+  { id: 'messages',      label: 'Messages',            icon: MessageSquare, color: '#DB2777' },
   { id: 'calendar',      label: 'Calendar',            icon: Calendar,      color: '#D97706' },
-  { id: 'shopping',      label: 'Shopping',            icon: ShoppingCart,  color: '#10B981', badge: 6 },
-  { id: 'pantry',        label: 'Pantry & Inventory',  icon: Package,       color: '#84CC16', badge: 5 },
+  { id: 'shopping',      label: 'Shopping',            icon: ShoppingCart,  color: '#10B981' },
+  { id: 'pantry',        label: 'Pantry & Inventory',  icon: Package,       color: '#84CC16' },
   { id: 'cleaning',      label: 'Cleaning / Kitchen',  icon: Wrench,        color: '#0EA5E9' },
   { id: 'emergency',     label: 'Emergency Planning',  icon: ShieldAlert,   color: '#EF4444' },
 ];
@@ -207,7 +216,13 @@ const SYSTEM_NAV: NavItem[] = [
 function Sidebar({ current, onChange, collapsed, onToggle }: {
   current: View; onChange: (v: View) => void; collapsed: boolean; onToggle: () => void;
 }) {
-  const { members: FAMILY_MEMBERS } = useHub();
+  const { members: FAMILY_MEMBERS, badges } = useHub();
+  const primaryNav = PRIMARY_NAV.map((item) => {
+    if (item.id === 'messages' && badges.messages > 0) return { ...item, badge: badges.messages };
+    if (item.id === 'shopping' && badges.shopping > 0) return { ...item, badge: badges.shopping };
+    if (item.id === 'pantry' && badges.pantry > 0) return { ...item, badge: badges.pantry };
+    return item;
+  });
   function NavLink({ item }: { item: NavItem }) {
     const active = current === item.id;
     const Icon = item.icon;
@@ -260,7 +275,7 @@ function Sidebar({ current, onChange, collapsed, onToggle }: {
         <div>
           {!collapsed && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Primary</div>}
           <div className="space-y-0.5">
-            {PRIMARY_NAV.map(item => <NavLink key={item.id} item={item} />)}
+            {primaryNav.map(item => <NavLink key={item.id} item={item} />)}
           </div>
         </div>
         <div>
@@ -1091,106 +1106,89 @@ function PantryView({ items, onUpdateStock, onAdd }: {
 // ── Messages Page ─────────────────────────────────────────────────────────────
 
 function MessagesView() {
-  const { members: FAMILY_MEMBERS, messages: boardMessages } = useHub();
-  void boardMessages;
-
-  const [selected, setSelected] = useState<string | null>('family');
+  const { members: FAMILY_MEMBERS, messages: boardMessages, postMessage } = useHub();
   const [newMsg, setNewMsg] = useState('');
 
-  const THREADS = [
-    { id: 'family', name: 'Family Group', lastMsg: 'Lorraine: Can someone pick up Stella…', time: '2m', unread: 2, members: FAMILY_MEMBERS },
-    { id: 'hershel', name: 'Hershel', lastMsg: "I'll grab the groceries on the way home", time: '14m', unread: 0, members: FAMILY_MEMBERS.slice(0, 1) },
-    { id: 'lorraine', name: 'Lorraine', lastMsg: 'Thanks for handling dinner!', time: '1h', unread: 1, members: FAMILY_MEMBERS.slice(1, 2) },
-  ];
-
-  const CONVO = [
-    { from: 'Lorraine', text: 'Can someone pick up Stella at 5pm today?', time: '2:41 PM', me: false },
-    { from: 'Hershel',  text: "I can't, stuck at work until 6", time: '2:43 PM', me: false },
-    { from: 'Me',       text: "I'll do it! Leaving at 4:45", time: '2:44 PM', me: true },
-    { from: 'Lorraine', text: 'Perfect, thank you! ❤️', time: '2:45 PM', me: false },
-    { from: 'Hershel',  text: "I'll grab the groceries on the way home. Need anything else?", time: '3:02 PM', me: false },
-  ];
+  const unread = boardMessages.filter((m) => !m.read).length;
 
   return (
     <div className="h-full flex">
-      {/* Thread list */}
       <div className="w-72 border-r border-stone-100 bg-white flex flex-col flex-shrink-0">
         <div className="px-4 pt-5 pb-4 border-b border-stone-100">
           <h2 className="font-semibold text-stone-900">Messages</h2>
-          <div className="relative mt-3">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input placeholder="Search…" className="w-full pl-8 pr-3 py-2 bg-stone-100 rounded-lg text-sm placeholder:text-stone-400 focus:outline-none" />
-          </div>
+          <p className="text-xs text-stone-500 mt-1">Family board · {unread} unread</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {THREADS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setSelected(t.id)}
-              className={`w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-stone-50 transition-colors border-b border-stone-50
-                ${selected === t.id ? 'bg-indigo-50' : ''}`}
-            >
-              <div className="flex -space-x-1.5 flex-shrink-0">
-                {t.members.slice(0, 2).map(m => <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />)}
+          <div className="w-full px-4 py-3.5 flex items-center gap-3 bg-indigo-50 border-b border-stone-50">
+            <div className="flex -space-x-1.5 flex-shrink-0">
+              {FAMILY_MEMBERS.slice(0, 2).map(m => <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-900">Family Board</div>
+              <div className="text-xs text-stone-500 truncate mt-0.5">
+                {boardMessages[0]?.text || 'No messages yet — say hello'}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-stone-900">{t.name}</span>
-                  <span className="text-xs text-stone-400">{t.time}</span>
-                </div>
-                <div className="text-xs text-stone-500 truncate mt-0.5">{t.lastMsg}</div>
-              </div>
-              {t.unread > 0 && (
-                <span className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-semibold flex-shrink-0">
-                  {t.unread}
-                </span>
-              )}
-            </button>
-          ))}
+            </div>
+            {unread > 0 && (
+              <span className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-semibold flex-shrink-0">
+                {unread}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Conversation */}
       <div className="flex-1 flex flex-col">
         <div className="px-6 py-4 bg-white border-b border-stone-100 flex items-center gap-3">
           <div className="flex -space-x-1.5">
             {FAMILY_MEMBERS.slice(0, 3).map(m => <MemberDot key={m.id} name={m.name} color={m.color} bg={m.bg} size="sm" />)}
           </div>
           <div>
-            <div className="font-semibold text-stone-900 text-sm">Family Group</div>
-            <div className="text-xs text-stone-400">6 members · all active today</div>
+            <div className="font-semibold text-stone-900 text-sm">Family Board</div>
+            <div className="text-xs text-stone-400">{FAMILY_MEMBERS.length} members</div>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {CONVO.map((msg, i) => {
-            const member = FAMILY_MEMBERS.find(m => m.name === msg.from);
-            return (
-              <div key={i} className={`flex gap-3 ${msg.me ? 'flex-row-reverse' : ''}`}>
-                {!msg.me && member && <MemberDot name={member.name} color={member.color} bg={member.bg} size="sm" />}
-                <div className={`max-w-xs lg:max-w-sm ${msg.me ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                  {!msg.me && <span className="text-xs text-stone-500 font-medium">{msg.from}</span>}
-                  <div className={`px-4 py-2.5 rounded-2xl text-sm ${msg.me ? 'text-white rounded-tr-md' : 'bg-white border border-stone-100 text-stone-800 rounded-tl-md'}`}
-                    style={msg.me ? { backgroundColor: '#4F46E5' } : {}}>
-                    {msg.text}
+          {boardMessages.length === 0 ? (
+            <div className="text-sm text-stone-500 text-center py-12">No posts yet. Send the first family note.</div>
+          ) : (
+            boardMessages.map((msg) => {
+              const member = FAMILY_MEMBERS.find(m => m.name === msg.from);
+              return (
+                <div key={msg.id} className="flex gap-3">
+                  {member && <MemberDot name={member.name} color={member.color} bg={member.bg} size="sm" />}
+                  <div className="items-start flex flex-col gap-1 max-w-lg">
+                    <span className="text-xs text-stone-500 font-medium">{msg.from}</span>
+                    <div className="px-4 py-2.5 rounded-2xl rounded-tl-md text-sm bg-white border border-stone-100 text-stone-800">
+                      {msg.text}
+                    </div>
+                    <span className="text-xs text-stone-400">{msg.time}</span>
                   </div>
-                  <span className="text-xs text-stone-400">{msg.time}</span>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
         <div className="px-6 py-4 bg-white border-t border-stone-100">
-          <div className="flex gap-2">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newMsg.trim()) return;
+              postMessage(newMsg);
+              setNewMsg('');
+            }}
+          >
             <input
               value={newMsg}
               onChange={e => setNewMsg(e.target.value)}
               placeholder="Send a message to the family…"
               className="flex-1 px-4 py-2.5 bg-stone-100 rounded-xl text-sm placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
-            <button className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">
+            <button type="submit" className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">
               Send
             </button>
-          </div>
+          </form>
         </div>
       </div>
     </div>
@@ -1448,10 +1446,19 @@ function PetsView() {
 // ── Subscriptions & Passwords Page ────────────────────────────────────────────
 
 function SubscriptionsView() {
-  const { subscriptions: SUBSCRIPTIONS, passwords: PASSWORDS } = useHub();
+  const {
+    subscriptions: SUBSCRIPTIONS,
+    passwords: PASSWORDS,
+    addSubscription,
+    addPassword,
+  } = useHub();
 
   const [tab, setTab] = useState<'billing' | 'passwords'>('billing');
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [draftName, setDraftName] = useState('');
+  const [draftAmount, setDraftAmount] = useState('');
+  const [draftUser, setDraftUser] = useState('');
+  const [draftHint, setDraftHint] = useState('');
   const monthly = SUBSCRIPTIONS.filter(s => s.cycle === 'Monthly');
   const monthlyTotal = monthly.reduce((sum, s) => sum + s.amount, 0);
 
@@ -1459,14 +1466,11 @@ function SubscriptionsView() {
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-semibold text-stone-900">Subscriptions & Passwords</h1>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500 hover:bg-violet-600 transition-colors">
-          <Plus size={15} /> Add
-        </button>
       </div>
       <p className="text-sm text-stone-500 mb-4">
         {tab === 'billing'
           ? <>Monthly total: <span className="font-semibold text-stone-800">${monthlyTotal.toFixed(2)}</span></>
-          : 'Household password vault — share carefully with adults.'}
+          : 'Household password vault — stored on this device only.'}
       </p>
 
       <div className="flex gap-1 bg-stone-100 p-1 rounded-xl w-fit mb-5">
@@ -1486,44 +1490,84 @@ function SubscriptionsView() {
       </div>
 
       {tab === 'billing' ? (
-        <div className="space-y-2">
-          {SUBSCRIPTIONS.map(sub => (
-            <Card key={sub.id} className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: sub.color + '18' }}>
-                <CreditCard size={16} style={{ color: sub.color }} />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium text-stone-900 text-sm">{sub.name}</div>
-                <div className="text-xs text-stone-400 mt-0.5">Due {sub.due} · {sub.cycle}</div>
-              </div>
-              <div className="font-semibold text-stone-800">${sub.amount.toFixed(2)}</div>
-            </Card>
-          ))}
+        <div className="space-y-3">
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!draftName.trim()) return;
+              addSubscription(draftName, Number.parseFloat(draftAmount) || 0);
+              setDraftName('');
+              setDraftAmount('');
+            }}
+          >
+            <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Service name" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+            <input value={draftAmount} onChange={e => setDraftAmount(e.target.value)} placeholder="Amount" className="w-28 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+            <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500 hover:bg-violet-600">
+              <Plus size={15} /> Add
+            </button>
+          </form>
+          <div className="space-y-2">
+            {SUBSCRIPTIONS.map(sub => (
+              <Card key={sub.id} className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: sub.color + '18' }}>
+                  <CreditCard size={16} style={{ color: sub.color }} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-stone-900 text-sm">{sub.name}</div>
+                  <div className="text-xs text-stone-400 mt-0.5">Due {sub.due} · {sub.cycle}</div>
+                </div>
+                <div className="font-semibold text-stone-800">${sub.amount.toFixed(2)}</div>
+              </Card>
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          {PASSWORDS.map(item => (
-            <Card key={item.id} className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: item.color + '18' }}>
-                <Key size={16} style={{ color: item.color }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-stone-900 text-sm">{item.label}</div>
-                <div className="text-xs text-stone-500 mt-0.5 truncate">
-                  {revealed[item.id] ? item.username : '••••••••••••'}
-                </div>
-                <div className="text-xs text-stone-400 mt-0.5">{item.hint}</div>
-              </div>
-              <button
-                onClick={() => setRevealed(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
-              >
-                {revealed[item.id] ? 'Hide' : 'Reveal'}
+        <div className="space-y-3">
+          <form
+            className="grid gap-2 sm:grid-cols-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!draftName.trim()) return;
+              addPassword(draftName, draftUser, draftHint);
+              setDraftName('');
+              setDraftUser('');
+              setDraftHint('');
+            }}
+          >
+            <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Label (e.g. Wi‑Fi)" className="px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+            <input value={draftUser} onChange={e => setDraftUser(e.target.value)} placeholder="Username / value" className="px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+            <div className="flex gap-2">
+              <input value={draftHint} onChange={e => setDraftHint(e.target.value)} placeholder="Hint (preferred)" className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+              <button type="submit" className="px-3 py-2 rounded-xl text-sm font-medium text-white bg-violet-500">
+                <Plus size={15} />
               </button>
-            </Card>
-          ))}
+            </div>
+          </form>
+          <div className="space-y-2">
+            {PASSWORDS.map(item => (
+              <Card key={item.id} className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: item.color + '18' }}>
+                  <Key size={16} style={{ color: item.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-stone-900 text-sm">{item.label}</div>
+                  <div className="text-xs text-stone-500 mt-0.5 truncate">
+                    {revealed[item.id] ? item.username : '••••••••••••'}
+                  </div>
+                  <div className="text-xs text-stone-400 mt-0.5">{item.hint}</div>
+                </div>
+                <button
+                  onClick={() => setRevealed(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
+                >
+                  {revealed[item.id] ? 'Hide' : 'Reveal'}
+                </button>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -1787,27 +1831,53 @@ export default function App() {
     }
   });
 
+  const [vaultTick, setVaultTick] = useState(0);
+  const vault = useMemo(() => {
+    void vaultTick;
+    return readHouseholdVault();
+  }, [vaultTick]);
+
   const hub = useMemo<HubContextValue>(() => {
+    const shoppingItems = mapHubShopping(data);
+    const pantryItems = mapHubPantry(data);
+    const messages = mapHubMessages(data);
     return {
       members: mapHubMembers(data),
-      shoppingItems: mapHubShopping(data),
-      pantryItems: mapHubPantry(data),
+      shoppingItems,
+      pantryItems,
       chores: mapHubChores(data),
       events: mapHubEvents(data),
-      messages: mapHubMessages(data),
+      messages,
       pets: mapHubPets(data),
-      subscriptions: mapHubSubscriptions(),
-      passwords: mapHubPasswords(),
+      subscriptions: mapHubSubscriptions(vault),
+      passwords: mapHubPasswords(vault),
       notifications: mapHubNotifications(data),
       docs: mapHubDocs(data),
+      badges: {
+        messages: messages.filter((m) => !m.read).length,
+        shopping: shoppingItems.filter((i) => !i.checked).length,
+        pantry: pantryItems.filter((i) => i.status === 'out' || i.status === 'low').length,
+      },
       toggleShoppingItem: (id) => setData((prev) => toggleShoppingPurchased(prev, id)),
       deleteShoppingItem: (id) => setData((prev) => bridgeDeleteShopping(prev, id)),
       addShoppingItem: (name, qty) => setData((prev) => bridgeAddShopping(prev, name, qty)),
       updatePantryStock: (id, qty) => setData((prev) => updatePantryQuantity(prev, id, qty)),
       addPantryItem: (name, qty) => setData((prev) => bridgeAddPantry(prev, name, qty)),
       toggleChore: (id) => setData((prev) => bridgeToggleChore(prev, id)),
+      postMessage: (text) => {
+        const author = data.familyMembers.find((m) => m.status !== 'archived')?.id;
+        setData((prev) => postFamilyMessage(prev, text, author));
+      },
+      addSubscription: (name, amount) => {
+        writeHouseholdVault(addVaultSubscription(readHouseholdVault(), { name, amount }));
+        setVaultTick((n) => n + 1);
+      },
+      addPassword: (label, username, hint) => {
+        writeHouseholdVault(addVaultPassword(readHouseholdVault(), { label, username, hint }));
+        setVaultTick((n) => n + 1);
+      },
     };
-  }, [data]);
+  }, [data, vault]);
 
   useEffect(() => {
     try {
